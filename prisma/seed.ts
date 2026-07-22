@@ -1,0 +1,177 @@
+import {
+  DistributionStrategy,
+  JobType,
+  PrismaClient,
+  ShiftStatus,
+  UserRole,
+} from "@prisma/client";
+import { hash } from "bcryptjs";
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const [passwordHash, pinHash] = await Promise.all([
+    hash("TipSathi123!", 12),
+    hash("1234", 12),
+  ]);
+
+  const restaurant = await prisma.restaurant.upsert({
+    where: { code: "DEMO" },
+    update: {},
+    create: {
+      name: "Demo Restaurant",
+      code: "DEMO",
+      currency: "INR",
+      timezone: "Asia/Kolkata",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: {
+      restaurantId_email: {
+        restaurantId: restaurant.id,
+        email: "manager@demo.in",
+      },
+    },
+    update: { passwordHash },
+    create: {
+      restaurantId: restaurant.id,
+      name: "Demo Manager",
+      email: "manager@demo.in",
+      passwordHash,
+      role: UserRole.MANAGER,
+    },
+  });
+
+  const employees = await Promise.all(
+    [
+      { name: "Arjun Mehta", employeeCode: "W001", jobType: JobType.WAITER },
+      { name: "Priya Shah", employeeCode: "R001", jobType: JobType.RUNNER },
+    ].map((employee) =>
+      prisma.employee.upsert({
+        where: {
+          restaurantId_employeeCode: {
+            restaurantId: restaurant.id,
+            employeeCode: employee.employeeCode,
+          },
+        },
+        update: { pinHash },
+        create: {
+          ...employee,
+          restaurantId: restaurant.id,
+          pinHash,
+        },
+      }),
+    ),
+  );
+
+  const tables = await Promise.all(
+    [...Array.from({ length: 10 }, (_, index) => index + 1), 12].map((number) =>
+      prisma.restaurantTable.upsert({
+        where: {
+          restaurantId_number: { restaurantId: restaurant.id, number },
+        },
+        update: {},
+        create: {
+          restaurantId: restaurant.id,
+          number,
+          name: `Table ${number}`,
+          capacity: number === 1 || number === 2 ? 2 : 4,
+        },
+      }),
+    ),
+  );
+
+  let shift = await prisma.shift.findFirst({
+    where: {
+      restaurantId: restaurant.id,
+      name: "Dinner service",
+      status: ShiftStatus.OPEN,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!shift) {
+    shift = await prisma.shift.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: "Dinner service",
+        businessDate: new Date(),
+        status: ShiftStatus.OPEN,
+        startedAt: new Date(),
+        employees: {
+          create: employees.map((employee, index) => ({
+            employeeId: employee.id,
+            clockInAt: new Date(
+              Date.now() - (index === 0 ? 4 : 3) * 60 * 60 * 1000,
+            ),
+            points: index === 0 ? 10 : 6,
+            isActive: true,
+          })),
+        },
+        assignments: {
+          create: [
+            {
+              tableId: tables[5].id,
+              employeeId: employees[0].id,
+              assignmentRole: JobType.WAITER,
+              weight: 70,
+              startedAt: new Date(),
+              isPrimary: true,
+            },
+            {
+              tableId: tables[5].id,
+              employeeId: employees[1].id,
+              assignmentRole: JobType.RUNNER,
+              weight: 30,
+              startedAt: new Date(),
+            },
+          ],
+        },
+        bills: {
+          create: {
+            restaurantId: restaurant.id,
+            tableId: tables[5].id,
+            billNumber: "DEMO-INV-1024",
+            publicToken: "demo-bill",
+            subtotalPaise: 185_000,
+            taxPaise: 15_000,
+            totalPaise: 200_000,
+          },
+        },
+      },
+    });
+  }
+
+  const existingRule = await prisma.tipRule.findFirst({
+    where: {
+      restaurantId: restaurant.id,
+      name: "Table team 70/30",
+    },
+  });
+  if (!existingRule) {
+    await prisma.tipRule.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: "Table team 70/30",
+        strategy: DistributionStrategy.WEIGHTED,
+        isDefault: true,
+        configuration: {
+          WAITER: 70,
+          RUNNER: 30,
+        },
+      },
+    });
+  }
+
+  console.info(`Seeded TipSathi demo shift ${shift.id}.`);
+}
+
+main()
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

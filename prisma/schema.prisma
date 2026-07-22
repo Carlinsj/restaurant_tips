@@ -1,0 +1,571 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  EMPLOYEE
+}
+
+enum JobType {
+  WAITER
+  CAPTAIN
+  RUNNER
+  BARTENDER
+  BUSSER
+  HOST
+  KITCHEN
+  OTHER
+}
+
+enum ShiftStatus {
+  DRAFT
+  OPEN
+  UNDER_REVIEW
+  CLOSED
+  PAID
+}
+
+enum BillStatus {
+  OPEN
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum TipMethod {
+  CASH
+  DIGITAL
+  MANUAL
+  POS_IMPORT
+}
+
+enum TipStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+enum DistributionStrategy {
+  DIRECT
+  WEIGHTED
+  EQUAL
+  HOURS_POOL
+  POINTS_POOL
+  HYBRID
+}
+
+enum AllocationType {
+  DIRECT
+  TABLE_SPLIT
+  POOL
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum PosProvider {
+  GENERIC_API
+  CSV_IMPORT
+  MANUAL
+  MOCK
+  PETPOOJA
+  RESTROWORKS
+  CUSTOM
+}
+
+enum PosIntegrationStatus {
+  DISCONNECTED
+  CONNECTED
+  ERROR
+  DISABLED
+}
+
+enum PosMappingStatus {
+  PENDING
+  MAPPED
+  IGNORED
+}
+
+enum PosWebhookStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum PosSyncType {
+  FULL
+  INCREMENTAL
+  MANUAL
+  WEBHOOK
+  CSV_IMPORT
+}
+
+enum PosSyncStatus {
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+model Restaurant {
+  id                       String                    @id @default(cuid())
+  name                     String
+  code                     String                    @unique
+  currency                 String                    @default("INR")
+  timezone                 String                    @default("Asia/Kolkata")
+  defaultTipPercentages    Int[]                     @default([5, 10, 15])
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  users                    User[]
+  employees                Employee[]
+  tables                   RestaurantTable[]
+  shifts                   Shift[]
+  bills                    Bill[]
+  tips                     Tip[]
+  tipRules                 TipRule[]
+  allocations              TipAllocation[]
+  adjustments              Adjustment[]
+  payouts                  Payout[]
+  auditLogs                AuditLog[]
+  posIntegrations          PosIntegration[]
+  externalOutletMappings   ExternalOutletMapping[]
+  externalEmployeeMappings ExternalEmployeeMapping[]
+  externalTableMappings    ExternalTableMapping[]
+  externalBillMappings     ExternalBillMapping[]
+  posWebhookEvents         PosWebhookEvent[]
+  posSyncRuns              PosSyncRun[]
+}
+
+model User {
+  id              String       @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant   @relation(fields: [restaurantId], references: [id])
+  name            String
+  email           String
+  passwordHash    String
+  role            UserRole
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  shiftsClosed    Shift[]      @relation("ShiftClosedBy")
+  tipsCreated     Tip[]        @relation("TipCreatedBy")
+  adjustments     Adjustment[]
+  payoutsApproved Payout[]     @relation("PayoutApprovedBy")
+  auditLogs       AuditLog[]   @relation("AuditUser")
+
+  @@unique([restaurantId, email])
+  @@index([restaurantId, isActive])
+}
+
+model Employee {
+  id               String                    @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant                @relation(fields: [restaurantId], references: [id])
+  name             String
+  employeeCode     String
+  pinHash          String
+  jobType          JobType
+  isActive         Boolean                   @default(true)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  shiftEmployees   ShiftEmployee[]
+  assignments      TableAssignment[]
+  allocations      TipAllocation[]
+  adjustments      Adjustment[]
+  payouts          Payout[]
+  auditLogs        AuditLog[]                @relation("AuditEmployee")
+  externalMappings ExternalEmployeeMapping[]
+
+  @@unique([restaurantId, employeeCode])
+  @@index([restaurantId, isActive])
+}
+
+model RestaurantTable {
+  id               String                 @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant             @relation(fields: [restaurantId], references: [id])
+  name             String
+  number           Int
+  capacity         Int                    @default(4)
+  isActive         Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  assignments      TableAssignment[]
+  bills            Bill[]
+  externalMappings ExternalTableMapping[]
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId, isActive])
+}
+
+model Shift {
+  id             String            @id @default(cuid())
+  restaurantId   String
+  restaurant     Restaurant        @relation(fields: [restaurantId], references: [id])
+  name           String
+  businessDate   DateTime          @db.Date
+  status         ShiftStatus       @default(DRAFT)
+  startedAt      DateTime?
+  closedAt       DateTime?
+  closedByUserId String?
+  closedBy       User?             @relation("ShiftClosedBy", fields: [closedByUserId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  employees      ShiftEmployee[]
+  assignments    TableAssignment[]
+  bills          Bill[]
+  allocations    TipAllocation[]
+  adjustments    Adjustment[]
+  payouts        Payout[]
+
+  @@index([restaurantId, businessDate, status])
+}
+
+model ShiftEmployee {
+  id            String    @id @default(cuid())
+  shiftId       String
+  shift         Shift     @relation(fields: [shiftId], references: [id])
+  employeeId    String
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  clockInAt     DateTime
+  clockOutAt    DateTime?
+  points        Int       @default(1)
+  minutesWorked Int       @default(0)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([shiftId, employeeId])
+  @@index([shiftId, isActive])
+}
+
+model TableAssignment {
+  id             String          @id @default(cuid())
+  shiftId        String
+  shift          Shift           @relation(fields: [shiftId], references: [id])
+  tableId        String
+  table          RestaurantTable @relation(fields: [tableId], references: [id])
+  employeeId     String
+  employee       Employee        @relation(fields: [employeeId], references: [id])
+  assignmentRole JobType
+  weight         Int             @default(100)
+  startedAt      DateTime
+  endedAt        DateTime?
+  isPrimary      Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([shiftId, tableId, endedAt])
+  @@index([employeeId, shiftId])
+}
+
+model Bill {
+  id               String                @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant            @relation(fields: [restaurantId], references: [id])
+  shiftId          String
+  shift            Shift                 @relation(fields: [shiftId], references: [id])
+  tableId          String
+  table            RestaurantTable       @relation(fields: [tableId], references: [id])
+  billNumber       String
+  publicToken      String                @unique @default(cuid())
+  subtotalPaise    Int
+  taxPaise         Int                   @default(0)
+  totalPaise       Int
+  status           BillStatus            @default(OPEN)
+  openedAt         DateTime              @default(now())
+  paidAt           DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  tips             Tip[]
+  externalMappings ExternalBillMapping[]
+
+  @@unique([restaurantId, billNumber])
+  @@index([shiftId, status])
+}
+
+model Tip {
+  id                  String          @id @default(cuid())
+  restaurantId        String
+  restaurant          Restaurant      @relation(fields: [restaurantId], references: [id])
+  billId              String
+  bill                Bill            @relation(fields: [billId], references: [id])
+  amountPaise         Int
+  percentage          Int?
+  method              TipMethod
+  status              TipStatus       @default(PENDING)
+  customerNote        String?
+  idempotencyKey      String?         @unique
+  sourceIntegrationId String?
+  sourceIntegration   PosIntegration? @relation(fields: [sourceIntegrationId], references: [id])
+  externalReference   String?
+  confirmedAt         DateTime?
+  createdByUserId     String?
+  createdBy           User?           @relation("TipCreatedBy", fields: [createdByUserId], references: [id])
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  allocations         TipAllocation[]
+  adjustments         Adjustment[]
+
+  @@unique([sourceIntegrationId, externalReference])
+  @@index([restaurantId, status, createdAt])
+  @@index([billId, status])
+}
+
+model TipRule {
+  id               String               @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant           @relation(fields: [restaurantId], references: [id])
+  name             String
+  strategy         DistributionStrategy
+  isDefault        Boolean              @default(false)
+  directPercentage Int?
+  poolPercentage   Int?
+  configuration    Json
+  isActive         Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([restaurantId, isDefault, isActive])
+}
+
+model TipAllocation {
+  id                 String         @id @default(cuid())
+  restaurantId       String
+  restaurant         Restaurant     @relation(fields: [restaurantId], references: [id])
+  shiftId            String
+  shift              Shift          @relation(fields: [shiftId], references: [id])
+  tipId              String
+  tip                Tip            @relation(fields: [tipId], references: [id])
+  employeeId         String
+  employee           Employee       @relation(fields: [employeeId], references: [id])
+  allocationType     AllocationType
+  amountPaise        Int
+  weight             Int?
+  points             Int?
+  calculationDetails Json
+  createdAt          DateTime       @default(now())
+
+  @@index([shiftId, employeeId])
+  @@index([tipId])
+}
+
+model Adjustment {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
+  shiftId         String
+  shift           Shift      @relation(fields: [shiftId], references: [id])
+  tipId           String?
+  tip             Tip?       @relation(fields: [tipId], references: [id])
+  employeeId      String
+  employee        Employee   @relation(fields: [employeeId], references: [id])
+  amountPaise     Int
+  reason          String
+  createdByUserId String
+  createdBy       User       @relation(fields: [createdByUserId], references: [id])
+  createdAt       DateTime   @default(now())
+
+  @@index([shiftId, employeeId])
+}
+
+model Payout {
+  id               String       @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant   @relation(fields: [restaurantId], references: [id])
+  shiftId          String
+  shift            Shift        @relation(fields: [shiftId], references: [id])
+  employeeId       String
+  employee         Employee     @relation(fields: [employeeId], references: [id])
+  amountPaise      Int
+  status           PayoutStatus @default(PENDING)
+  paymentMethod    String?
+  reference        String?
+  approvedByUserId String?
+  approvedBy       User?        @relation("PayoutApprovedBy", fields: [approvedByUserId], references: [id])
+  paidAt           DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([shiftId, employeeId, status])
+}
+
+model AuditLog {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
+  actorUserId     String?
+  actorUser       User?      @relation("AuditUser", fields: [actorUserId], references: [id])
+  actorEmployeeId String?
+  actorEmployee   Employee?  @relation("AuditEmployee", fields: [actorEmployeeId], references: [id])
+  action          String
+  entityType      String
+  entityId        String
+  previousValue   Json?
+  newValue        Json?
+  reason          String?
+  createdAt       DateTime   @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model PosIntegration {
+  id                   String                    @id @default(cuid())
+  restaurantId         String
+  restaurant           Restaurant                @relation(fields: [restaurantId], references: [id])
+  provider             PosProvider
+  displayName          String
+  status               PosIntegrationStatus      @default(DISCONNECTED)
+  credentialsEncrypted String?
+  settingsJson         Json
+  lastSyncAt           DateTime?
+  lastSuccessfulSyncAt DateTime?
+  lastError            String?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  outletMappings       ExternalOutletMapping[]
+  employeeMappings     ExternalEmployeeMapping[]
+  tableMappings        ExternalTableMapping[]
+  billMappings         ExternalBillMapping[]
+  webhookEvents        PosWebhookEvent[]
+  syncRuns             PosSyncRun[]
+  importedTips         Tip[]
+
+  @@unique([restaurantId, displayName])
+  @@index([restaurantId, status])
+}
+
+model ExternalOutletMapping {
+  id               String           @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id])
+  posIntegrationId String
+  posIntegration   PosIntegration   @relation(fields: [posIntegrationId], references: [id])
+  externalOutletId String
+  localOutletKey   String           @default("PRIMARY")
+  externalName     String
+  status           PosMappingStatus @default(MAPPED)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([restaurantId, posIntegrationId, externalOutletId])
+  @@index([posIntegrationId, status])
+}
+
+model ExternalEmployeeMapping {
+  id                 String           @id @default(cuid())
+  restaurantId       String
+  restaurant         Restaurant       @relation(fields: [restaurantId], references: [id])
+  posIntegrationId   String
+  posIntegration     PosIntegration   @relation(fields: [posIntegrationId], references: [id])
+  externalEmployeeId String
+  employeeId         String?
+  employee           Employee?        @relation(fields: [employeeId], references: [id])
+  externalCode       String?
+  externalName       String
+  status             PosMappingStatus @default(PENDING)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([restaurantId, posIntegrationId, externalEmployeeId])
+  @@index([posIntegrationId, status])
+  @@index([employeeId])
+}
+
+model ExternalTableMapping {
+  id               String           @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id])
+  posIntegrationId String
+  posIntegration   PosIntegration   @relation(fields: [posIntegrationId], references: [id])
+  externalTableId  String
+  tableId          String?
+  table            RestaurantTable? @relation(fields: [tableId], references: [id])
+  externalNumber   Int?
+  externalName     String
+  status           PosMappingStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([restaurantId, posIntegrationId, externalTableId])
+  @@index([posIntegrationId, status])
+  @@index([tableId])
+}
+
+model ExternalBillMapping {
+  id                 String         @id @default(cuid())
+  restaurantId       String
+  restaurant         Restaurant     @relation(fields: [restaurantId], references: [id])
+  posIntegrationId   String
+  posIntegration     PosIntegration @relation(fields: [posIntegrationId], references: [id])
+  externalBillId     String
+  billId             String
+  bill               Bill           @relation(fields: [billId], references: [id])
+  externalBillNumber String
+  lastExternalStatus BillStatus
+  lastSyncedAt       DateTime       @default(now())
+  rawPayloadJson     Json?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([restaurantId, posIntegrationId, externalBillId])
+  @@unique([posIntegrationId, billId])
+  @@index([billId])
+}
+
+model PosWebhookEvent {
+  id               String           @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant       @relation(fields: [restaurantId], references: [id])
+  posIntegrationId String
+  posIntegration   PosIntegration   @relation(fields: [posIntegrationId], references: [id])
+  providerEventId  String
+  eventType        String
+  payloadJson      Json
+  signatureValid   Boolean
+  status           PosWebhookStatus @default(RECEIVED)
+  errorMessage     String?
+  receivedAt       DateTime         @default(now())
+  processedAt      DateTime?
+
+  @@unique([posIntegrationId, providerEventId])
+  @@index([restaurantId, receivedAt])
+  @@index([posIntegrationId, status])
+}
+
+model PosSyncRun {
+  id               String         @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant     @relation(fields: [restaurantId], references: [id])
+  posIntegrationId String
+  posIntegration   PosIntegration @relation(fields: [posIntegrationId], references: [id])
+  syncType         PosSyncType
+  status           PosSyncStatus  @default(RUNNING)
+  recordsReceived  Int            @default(0)
+  recordsCreated   Int            @default(0)
+  recordsUpdated   Int            @default(0)
+  recordsIgnored   Int            @default(0)
+  errorMessage     String?
+  detailsJson      Json?
+  startedAt        DateTime       @default(now())
+  completedAt      DateTime?
+
+  @@index([restaurantId, startedAt])
+  @@index([posIntegrationId, startedAt])
+}

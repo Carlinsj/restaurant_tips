@@ -1515,3 +1515,173 @@ TipSathi is a transparent restaurant tip-management platform that automatically 
 The primary value proposition is:
 
 > Automatically track and divide restaurant tips without manual end-of-shift calculations.
+
+---
+
+## Implementation Notes
+
+TipSathi is implemented as a full-stack Next.js App Router application with strict TypeScript, Tailwind CSS, shadcn/ui, Prisma, PostgreSQL, Zod, JWT-backed HTTP-only sessions, bcrypt password/PIN hashing, and Vitest.
+
+### Implemented product surfaces
+
+- Public product page and role-specific login screens
+- Mobile-first manager workspace, live table floor, shift review, employees, payouts, reports, and settings
+- Employee shift and private earnings dashboard
+- QR-ready customer tipping route at `/tip/[publicToken]`
+- Percentage, custom, and no-tip customer choices
+- Manual bill and cash/manual tip APIs
+- Paise-only direct, weighted, equal, hours, points, and hybrid allocation engines
+- Deterministic largest-remainder allocation with exact sum invariants
+- PostgreSQL schema, initial migration, development seed, audit records, and manager-scoped APIs
+- Provider-agnostic POS integration system described below
+
+## POS Integration Architecture
+
+POS provider code lives under `src/integrations/pos` and does not import UI code. Core tip calculations do not know which provider supplied a bill.
+
+```text
+src/integrations/pos/
+  adapter.ts                 shared adapter contract and safe error types
+  types.ts                   normalized provider-independent records/events
+  registry.ts                adapter registry and provider availability
+  matching.ts                conservative employee/table matching
+  sync-service.ts            mappings, bills, tips, allocations, sync runs
+  webhook-service.ts         signature verification and idempotent processing
+  presentation.ts            credential-safe API DTOs
+  security/
+    encryption.ts            AES-256-GCM credential encryption
+    redaction.ts             recursive secret redaction
+    safe-url.ts              SSRF and private-network protection
+  providers/
+    generic/                 configurable HTTPS JSON REST adapter
+    mock/                    deterministic development/test adapter
+    csv/                     CSV parser, preview, validation, and adapter
+    manual/                  no-POS fallback adapter
+```
+
+### Provider availability
+
+- `GENERIC_API`: available. Configurable relative endpoints, authentication, field mappings, status mappings, timeouts, response paths, and webhook mappings.
+- `CSV_IMPORT`: available with row-level preview and failed-row export.
+- `MANUAL`: available and remains independent from connected systems.
+- `MOCK`: development only. Returns Main Outlet, W001/Arjun, R001/Priya, Table 12, bill INV-1024 for ₹2,000, and a confirmed ₹200 tip.
+- `PETPOOJA`, `RESTROWORKS`, and `CUSTOM`: registered as unavailable placeholders. No undocumented endpoint or payload assumptions are included.
+
+### Synchronization behavior
+
+A sync:
+
+1. Loads a restaurant-scoped integration.
+2. Decrypts credentials only on the server.
+3. Instantiates the registered adapter.
+4. Normalizes outlets, employees, tables, and bills.
+5. Matches employees only by unique employee code; names never auto-merge.
+6. Matches tables by number or exact normalized name.
+7. Creates pending mappings when a reliable match is unavailable.
+8. Imports each bill in its own transaction so one bad record does not corrupt others.
+9. Imports a tip only for a paid bill with a positive confirmed external tip.
+10. Allocates imported tips with the existing paise-only engine.
+11. Records mappings, a sync run, errors, and audit activity.
+
+Unique database constraints make external bills, external tips, and webhook events idempotent. Repeated input does not create duplicate financial records or allocations.
+
+### Generic REST security
+
+Generic provider requests are server-only. Settings accept relative endpoint paths so requests cannot jump to another origin. The connection layer:
+
+- permits HTTPS only in production;
+- blocks localhost, private, link-local, reserved, and cloud metadata targets;
+- resolves hostnames and rejects private resolved addresses;
+- rejects URL-embedded credentials and redirects;
+- applies a 1–30 second timeout;
+- handles rejected credentials and non-2xx responses safely;
+- validates response collections and mapped records with Zod;
+- reads nested fields without `eval`; and
+- redacts authorization, token, secret, password, signature, and API-key fields before storage or logs.
+
+Trusted on-prem/private network access is deliberately not enabled in this version. It requires a separate allowlist design.
+
+### Credential encryption
+
+Set `POS_CREDENTIAL_ENCRYPTION_KEY` to a base64-encoded 32-byte value:
+
+```bash
+openssl rand -base64 32
+```
+
+Credentials are encrypted with AES-256-GCM using a fresh 96-bit IV. Saved credentials are never included in integration API responses. Changing the key makes existing saved credentials unreadable, so manage and rotate it deliberately.
+
+### Webhooks
+
+The public endpoint is:
+
+```text
+POST /api/integrations/pos/[integrationId]/webhook
+```
+
+Adapters verify the raw request body before normalization. The generic and mock adapters use an HMAC-SHA256 signature from `x-pos-signature` (or `x-signature`) and accept the usual `sha256=<hex>` form. Invalid signatures are rejected and audited. The unique `posIntegrationId + providerEventId` constraint prevents duplicate processing.
+
+Webhook events normalize to the event types in the product brief. Unknown events are stored as ignored rather than treated as paid.
+
+### CSV imports
+
+Manager routes:
+
+```text
+/manager/integrations/csv
+POST /api/integrations/csv/preview
+POST /api/integrations/csv/import
+```
+
+Required columns:
+
+```csv
+bill_number,table_number,bill_total,employee_code,status
+```
+
+Optional columns:
+
+```csv
+tip_amount,paid_at,external_bill_id,employee_name,table_name
+```
+
+Rupee strings are parsed directly into integer paise. Invalid monetary values are never silently skipped: each row carries explicit errors, invalid rows remain unimported, and the manager can download them.
+
+## Local Setup
+
+1. Copy `.env.example` to `.env`.
+2. Set a PostgreSQL `DATABASE_URL`.
+3. Generate strong `AUTH_SECRET` and `POS_CREDENTIAL_ENCRYPTION_KEY` values.
+4. Apply the migration and seed demo data.
+
+```bash
+npm install
+npx prisma migrate deploy
+npm run db:seed
+npm run dev
+```
+
+Development seed credentials:
+
+```text
+Restaurant code: DEMO
+Manager email: manager@demo.in
+Manager password: TipSathi123!
+Employee code: W001
+Employee PIN: 1234
+```
+
+These credentials are development-only and must not be used in production.
+
+## Verification
+
+```bash
+npm test
+npm run typecheck
+npm run lint
+npm run build
+```
+
+Unit coverage includes all allocation strategies, rounding, refunds, provider registry behavior, generic field normalization, nested mapping safety, rupee-to-paise conversion, status normalization, employee/table matching, AES-GCM encryption, secret redaction, webhook HMAC verification, and CSV row validation.
+
+Database-backed integration and permission scenarios require a disposable PostgreSQL test database configured through `DATABASE_URL`.
