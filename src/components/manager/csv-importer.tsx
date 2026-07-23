@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Download,
   FileCheck2,
-  FileSpreadsheet,
   LoaderCircle,
   UploadCloud,
 } from "lucide-react";
@@ -25,18 +24,13 @@ import {
 } from "@/integrations/pos/providers/csv/parser";
 import { formatInr } from "@/lib/currency";
 
-const SAMPLE_CSV = `bill_number,table_number,bill_total,tip_amount,employee_code,status,paid_at,external_bill_id,employee_name,table_name
-INV-1024,6,2000.00,200.00,W001,PAID,2026-07-22T21:40:00+05:30,ext-1024,Arjun Mehta,Table 6
-INV-1025,9,1750.50,175.05,W007,PAID,2026-07-22T21:45:00+05:30,ext-1025,Vikram Singh,Table 9
-INV-1026,5,not-a-number,,W011,OPEN,,,Meera Nair,Table 5`;
-
 export function CsvImporter() {
   const [fileName, setFileName] = useState("");
   const [content, setContent] = useState("");
   const [preview, setPreview] = useState<CsvPreview | null>(null);
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
-  const [imported, setImported] = useState(false);
+  const [imported, setImported] = useState<{ created: number; updated: number; ignored: number } | null>(null);
 
   function createPreview(csv: string, name: string) {
     try {
@@ -44,7 +38,7 @@ export function CsvImporter() {
       setFileName(name);
       setPreview(previewCsvImport(csv));
       setError("");
-      setImported(false);
+      setImported(null);
     } catch (caught) {
       setPreview(null);
       setError(caught instanceof Error ? caught.message : "The CSV could not be read.");
@@ -75,23 +69,43 @@ export function CsvImporter() {
   async function importValidRows() {
     if (!preview || preview.validCount === 0 || !content) return;
     setImporting(true);
-    await new Promise((resolve) => window.setTimeout(resolve, 950));
-    setImporting(false);
-    setImported(true);
+    setError("");
+    setImported(null);
+    try {
+      const response = await fetch("/api/integrations/csv/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csvContent: content }),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        result?: { created: number; updated: number; ignored: number };
+      };
+      if (!response.ok || !result.result) {
+        setError(result.error ?? "The CSV import was not successful.");
+        return;
+      }
+      setImported(result.result);
+    } catch {
+      setError("Unable to reach TipSathi. Check your connection and try again.");
+    } finally {
+      setImporting(false);
+    }
   }
 
   return (
     <div className="space-y-5 sm:space-y-6">
       <section>
-        <Button variant="ghost" size="sm" asChild className="-ms-2 mb-3 text-muted-foreground"><Link href="/manager/integrations"><ArrowLeft className="size-3.5" /> Integrations</Link></Button>
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div><p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">Fallback import</p><h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">Import bills from CSV</h1><p className="mt-1 text-sm text-muted-foreground">Preview and validate each row before anything is written to TipSathi.</p></div>
-          <Button variant="outline" onClick={() => createPreview(SAMPLE_CSV, "sample-pos-export.csv")} className="border-[#d7d0c4] bg-white/65"><FileSpreadsheet className="size-4" /> Load sample file</Button>
+        <Button variant="ghost" size="sm" asChild className="-ms-2 mb-3 text-muted-foreground"><Link href="/manager/integrations"><ArrowLeft className="size-3.5" /> POS setup</Link></Button>
+        <div>
+          <p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">POS import</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">Import bills from your POS</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Choose your restaurant’s CSV file and review it before importing.</p>
         </div>
       </section>
 
       {error && <Alert variant="destructive"><AlertCircle className="size-4" /><AlertTitle>CSV needs attention</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
-      {imported && preview && <Alert className="border-primary/15 bg-[#e7f1ec]"><CheckCircle2 className="size-4 text-primary" /><AlertTitle className="text-primary">Import complete</AlertTitle><AlertDescription>{preview.validCount} valid rows were processed in an auditable sync run. Re-importing the same external bill IDs will not create duplicates.</AlertDescription></Alert>}
+      {imported && <Alert className="border-primary/15 bg-[#e7f1ec]"><CheckCircle2 className="size-4 text-primary" /><AlertTitle className="text-primary">Import complete</AlertTitle><AlertDescription>{imported.created} created, {imported.updated} updated, and {imported.ignored} ignored in the recorded sync run.</AlertDescription></Alert>}
 
       {!preview ? (
         <Card className="border-dashed border-[#d5cdbf] bg-white/48 py-0 shadow-none">
