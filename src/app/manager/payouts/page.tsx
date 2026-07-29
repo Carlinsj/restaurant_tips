@@ -18,9 +18,7 @@ export default function PayoutsPage() {
         <div>
           <p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">Money movement</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">Payouts</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Read-only preview of payouts after shift finalization.</p>
         </div>
-        <Badge variant="outline" className="w-fit">Demo data</Badge>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">

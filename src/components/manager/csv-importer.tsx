@@ -100,7 +100,7 @@ export function CsvImporter() {
         <div>
           <p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">POS import</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">Import bills from your POS</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Choose your restaurant’s CSV file and review it before importing.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Choose your restaurant’s CSV file. TipSathi recognizes common POS headings and shows any rows that need attention.</p>
         </div>
       </section>
 
@@ -112,7 +112,7 @@ export function CsvImporter() {
           <CardContent className="flex min-h-[340px] flex-col items-center justify-center p-8 text-center">
             <span className="flex size-14 items-center justify-center rounded-2xl bg-[#e5eee9] text-primary"><UploadCloud className="size-6" /></span>
             <h2 className="mt-5 text-base font-semibold">Choose a POS export</h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Required: bill number, table number, bill total, employee code, and status. Tip amount and paid time are optional.</p>
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Include a bill or invoice number, table, total, staff code, and payment status. Tip amount and paid time are optional.</p>
             <LabelledFileInput onChange={selectFile} />
             <p className="mt-3 text-[11px] text-muted-foreground">CSV only · Maximum 5 MB · Nothing imports before review</p>
           </CardContent>

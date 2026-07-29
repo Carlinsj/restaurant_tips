@@ -61,10 +61,10 @@ export default async function TipSuccessPage({
             <Check className="size-7" strokeWidth={2.5} aria-hidden="true" />
           </span>
           <p className="mt-6 text-xs font-semibold tracking-wider text-primary uppercase">
-            {isDemo ? "Demo complete" : "Confirmed"}
+            {isDemo ? "Practice complete" : "Confirmed"}
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
-            {isDemo ? "That is the complete customer flow" : "Thank you for your kindness"}
+            {isDemo ? "Customer flow complete" : "Thank you for your kindness"}
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
             {isDemo
@@ -77,12 +77,12 @@ export default async function TipSuccessPage({
           {amountPaise > 0 && (
             <div className="mt-6 rounded-2xl bg-[#173a34] p-5 text-white">
               <HeartHandshake className="mx-auto size-5 text-[#f5c95f]" aria-hidden="true" />
-              <p className="mt-3 text-xs text-white/50">{isDemo ? "Example tip" : "Tip recorded"}</p>
+              <p className="mt-3 text-xs text-white/50">{isDemo ? "Selected tip" : "Tip recorded"}</p>
               <p className="font-tabular mt-1 text-3xl font-semibold tracking-[-0.04em]">
                 {formatInr(amountPaise)}
               </p>
               <p className="mt-2 text-[10px] text-[#9bc4b5]">
-                {isDemo ? "Demonstration only · no database write" : "Allocation saved in paise · no rounding gap"}
+                {isDemo ? "Practice mode · not recorded" : "Allocation saved in paise · no rounding gap"}
               </p>
             </div>
           )}
@@ -92,7 +92,7 @@ export default async function TipSuccessPage({
               <ReceiptText className="size-3" aria-hidden="true" /> Bill {billNumber}
             </span>
             <span className="flex items-center gap-1">
-              <ShieldCheck className="size-3" aria-hidden="true" /> {isDemo ? "Demo" : "Auditable"}
+              <ShieldCheck className="size-3" aria-hidden="true" /> {isDemo ? "Practice" : "Auditable"}
             </span>
           </div>
           <Button variant="outline" asChild className="mt-7 w-full">

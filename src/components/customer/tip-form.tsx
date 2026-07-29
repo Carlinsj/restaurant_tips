@@ -115,7 +115,7 @@ export function TipForm({
           <Brand />
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
             <LockKeyhole className="size-3" aria-hidden="true" />
-            {bill.isDemo ? "Demo bill · no data saved" : "Secure bill"}
+            {bill.isDemo ? "Practice bill · no data saved" : "Secure bill"}
           </span>
         </div>
       </header>
@@ -147,12 +147,6 @@ export function TipForm({
           </div>
 
           <form onSubmit={confirmTip} className="p-5 sm:p-7">
-            {bill.isDemo && (
-              <Alert role="note" className="mb-5 border-amber-300/50 bg-amber-50 text-amber-900">
-                <AlertDescription className="text-xs leading-5 text-amber-800">This is an interactive example. Confirming it will not record a tip or charge a payment method.</AlertDescription>
-              </Alert>
-            )}
-
             <div className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Sparkles className="size-4" aria-hidden="true" />
@@ -284,8 +278,8 @@ export function TipForm({
               {submitting ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <ReceiptText className="size-4" aria-hidden="true" />}
               {bill.isDemo
                 ? selection === "none"
-                  ? "Complete demo with no tip"
-                  : `Try ${formatInr(tipPaise)} demo tip`
+                  ? "Finish without a tip"
+                  : `Continue with ${formatInr(tipPaise)}`
                 : selection === "none"
                   ? "Confirm no tip"
                   : `Confirm ${formatInr(tipPaise)} tip`}
@@ -294,7 +288,7 @@ export function TipForm({
             <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[10px] text-muted-foreground">
               <ShieldCheck className="size-3" aria-hidden="true" />
               {bill.isDemo
-                ? "Demo only · no payment or database write"
+                ? "Practice mode · no payment or saved data"
                 : "TipSathi records your choice; the restaurant’s payment system handles payment."}
             </p>
           </form>

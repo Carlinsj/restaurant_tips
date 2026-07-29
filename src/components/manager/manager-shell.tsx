@@ -12,7 +12,6 @@ import {
   WalletCards,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Brand } from "@/components/shared/brand";
 import { cn } from "@/lib/utils";
@@ -71,7 +70,6 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
           <Brand compact className="lg:hidden" />
           <div className="hidden items-center gap-3 lg:flex">
             <p className="text-xs font-medium text-muted-foreground">Wednesday, 22 July</p>
-            <Badge variant="secondary" className="font-medium">Demo workspace</Badge>
           </div>
           <div className="flex items-center gap-2">
             <div className="ms-1 flex items-center gap-2.5">
@@ -79,7 +77,7 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
                 <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">DM</AvatarFallback>
               </Avatar>
               <div className="hidden sm:block">
-                <p className="text-xs font-semibold leading-none">Demo Manager</p>
+                <p className="text-xs font-semibold leading-none">Restaurant Manager</p>
                 <p className="mt-1 text-[10px] text-muted-foreground">Manager</p>
               </div>
             </div>

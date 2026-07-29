@@ -167,4 +167,27 @@ INV-2,7,bad,R001,PAID`);
     expect(output).toContain("row_number");
     expect(output).toContain("Bill total is not a valid rupee amount.");
   });
+
+  it("recognizes common POS column names and values", () => {
+    const preview = previewCsvImport(`Invoice No,Table,Grand Total (INR),Gratuity,Waiter Code,Payment Status,Closed At
+INV-3,Table 12,"₹2,450.00",245,W001,Settled,2026-07-22T21:30:00+05:30`);
+
+    expect(preview.validCount).toBe(1);
+    expect(preview.headers).toEqual([
+      "bill_number",
+      "table_number",
+      "bill_total",
+      "tip_amount",
+      "employee_code",
+      "status",
+      "paid_at",
+    ]);
+    expect(preview.rows[0].bill).toMatchObject({
+      billNumber: "INV-3",
+      tableName: "Table 12",
+      totalPaise: 245_000,
+      tipPaise: 24_500,
+      status: "PAID",
+    });
+  });
 });

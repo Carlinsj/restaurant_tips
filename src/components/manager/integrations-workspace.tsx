@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FileSpreadsheet, PlugZap } from "lucide-react";
+import { ArrowRight, FileSpreadsheet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +19,8 @@ export function IntegrationsWorkspace() {
           Bring your bills into TipSathi
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Export a CSV from your billing system, review it, and import it. No technical setup is required.
+          Export a bill CSV from your restaurant software, review it, and import it. Common POS column names
+          are recognized automatically.
         </p>
       </section>
 
@@ -36,7 +37,7 @@ export function IntegrationsWorkspace() {
                   <Badge variant="secondary">Recommended</Badge>
                 </div>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Works with any POS that can export bills as a CSV file.
+                  The broadest option for POS systems that can export bill data.
                 </p>
               </div>
             </div>
@@ -60,14 +61,6 @@ export function IntegrationsWorkspace() {
           </Button>
         </CardContent>
       </Card>
-
-      <div className="flex max-w-3xl items-start gap-3 border-t border-border pt-5">
-        <PlugZap className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <p className="text-sm leading-6 text-muted-foreground">
-          Automatic syncing requires official API access from your POS provider. Until that access is enabled,
-          CSV import is the reliable option.
-        </p>
-      </div>
     </div>
   );
 }

@@ -30,7 +30,7 @@ const features = [
     icon: BadgeIndianRupee,
     number: "03",
     title: "A calmer shift close",
-    copy: "Managers can review exceptions, understand allocations, and see the intended payout workflow in one place.",
+    copy: "Managers can review exceptions, understand allocations, and manage payouts in one place.",
   },
 ] as const;
 
@@ -91,7 +91,7 @@ export default function Home() {
               <Card className="gap-0 overflow-hidden rounded-2xl py-0 shadow-[0_24px_70px_rgba(28,52,44,0.11)]">
                 <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground">Dinner service · Demo preview</p>
+                    <p className="text-xs font-medium text-muted-foreground">Dinner service</p>
                     <p className="mt-1 text-sm font-semibold">Saffron & Slate</p>
                   </div>
                   <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">

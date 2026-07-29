@@ -30,30 +30,41 @@ export async function POST(request: Request) {
     );
   }
 
-  const prisma = getPrisma();
-  const user = await prisma.user.findFirst({
-    where: {
-      email: parsed.data.email,
-      isActive: true,
-      role: { in: ["OWNER", "MANAGER"] },
-      restaurant: { code: parsed.data.restaurantCode },
-    },
-  });
+  try {
+    const prisma = getPrisma();
+    const user = await prisma.user.findFirst({
+      where: {
+        email: parsed.data.email,
+        isActive: true,
+        role: { in: ["OWNER", "MANAGER"] },
+        restaurant: { code: parsed.data.restaurantCode },
+      },
+    });
 
-  if (!user || !(await verifyCredential(parsed.data.password, user.passwordHash))) {
+    if (!user || !(await verifyCredential(parsed.data.password, user.passwordHash))) {
+      return NextResponse.json(
+        { error: "The login details did not match an active manager." },
+        { status: 401 },
+      );
+    }
+
+    clearLoginAttempts(rateLimitKey);
+    await setSession({
+      subjectId: user.id,
+      restaurantId: user.restaurantId,
+      role: user.role,
+      name: user.name,
+    });
+
+    return NextResponse.json({ ok: true, redirectTo: "/manager" });
+  } catch (error) {
+    console.error("Manager sign-in dependency failed.", error);
     return NextResponse.json(
-      { error: "The login details did not match an active manager." },
-      { status: 401 },
+      {
+        error:
+          "TipSathi's database is unavailable. Start PostgreSQL and try again.",
+      },
+      { status: 503 },
     );
   }
-
-  clearLoginAttempts(rateLimitKey);
-  await setSession({
-    subjectId: user.id,
-    restaurantId: user.restaurantId,
-    role: user.role,
-    name: user.name,
-  });
-
-  return NextResponse.json({ ok: true, redirectTo: "/manager" });
 }

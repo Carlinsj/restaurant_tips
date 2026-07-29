@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { QrCode, TableProperties, Users } from "lucide-react";
+import { QrCode, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,16 +11,12 @@ export default function TablesPage() {
     <div className="space-y-5 sm:space-y-6">
       <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">Floor preview</p>
+          <p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">Floor</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">
             Tables & assignments
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Read-only sample of each table, bill state, and serving team.
-          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline">Demo data</Badge>
           <Button variant="outline" asChild className="bg-white/65">
             <Link href="/tip/demo-bill">
               <QrCode className="size-4" /> Tip page
@@ -62,24 +58,6 @@ export default function TablesPage() {
         ))}
       </section>
 
-      <Card className="border-[#ded7ca] bg-[#173a34] py-5 text-white shadow-none">
-        <CardContent className="flex flex-col justify-between gap-4 px-5 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-white/10 text-[#f5c95f]">
-              <TableProperties className="size-5" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold">Table 9 needs a runner</p>
-              <p className="mt-1 text-xs text-white/55">
-                Assignment editing is not connected in this prototype.
-              </p>
-            </div>
-          </div>
-          <Badge variant="outline" className="w-fit border-white/20 bg-white/10 text-white">
-            Read only
-          </Badge>
-        </CardContent>
-      </Card>
     </div>
   );
 }

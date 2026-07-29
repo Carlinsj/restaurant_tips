@@ -39,16 +39,13 @@ export default async function ShiftReviewPage({
         <div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="border-[#e8d2aa] bg-[#f7ecd5] text-[#966b20]">
-              Demo review
+              Under review
             </Badge>
             <span className="text-xs text-muted-foreground">22 July 2026</span>
           </div>
           <h1 className="mt-3 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">
             Dinner service
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Read-only example of the review step before employee earnings are locked.
-          </p>
         </div>
       </section>
 
@@ -56,7 +53,7 @@ export default async function ShiftReviewPage({
         <AlertTriangle className="size-4 text-[#a7682f]" />
         <AlertTitle>One assignment needs review</AlertTitle>
         <AlertDescription>
-          A live finalization workflow must resolve Table 9&apos;s missing runner assignment before closing.
+          Assign a runner to Table 9 before closing this shift.
         </AlertDescription>
       </Alert>
 
@@ -76,7 +73,7 @@ export default async function ShiftReviewPage({
 
       <Card className="gap-0 border-[#ded7ca] bg-white/76 py-0 shadow-none">
         <CardHeader className="border-b border-[#e8e1d6] px-5 py-4">
-          <CardTitle className="text-sm">Example employee allocations</CardTitle>
+          <CardTitle className="text-sm">Employee allocations</CardTitle>
         </CardHeader>
         <CardContent className="divide-y divide-[#ebe5db] px-5">
           {demoEmployees.map((employee) => (

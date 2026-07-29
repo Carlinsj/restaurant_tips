@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { ArrowRight, Info, KeyRound, LoaderCircle, LockKeyhole, Mail, Store } from "lucide-react";
+import { ArrowRight, KeyRound, LoaderCircle, LockKeyhole, Mail, Store } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,26 +35,32 @@ export function LoginForm({ role }: { role: "manager" | "employee" }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = (await response.json()) as { error?: string; redirectTo?: string };
-      if (!response.ok || !result.redirectTo) {
-        setError(result.error ?? "Sign in was not successful.");
+      const result = (await response.json().catch(() => null)) as {
+        error?: string;
+        redirectTo?: string;
+      } | null;
+      if (!response.ok || !result?.redirectTo) {
+        setError(
+          result?.error ??
+            (response.status >= 500
+              ? "TipSathi's server is unavailable. Please try again shortly."
+              : "Sign in was not successful."),
+        );
       } else {
         window.location.assign(result.redirectTo);
       }
     } catch {
-      setError("Unable to reach TipSathi. Check your connection and try again.");
+      setError(
+        "TipSathi's server is not running or cannot be reached. Start the app and try again.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form method="post" onSubmit={submit} className="space-y-4">
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <Alert className="border-amber-300/50 bg-amber-50 text-amber-900">
-        <Info className="size-4" aria-hidden="true" />
-        <AlertDescription className="text-[11px] leading-4 text-amber-800">Authentication and protected APIs are functional. Workspace screens are clearly marked as demo data.</AlertDescription>
-      </Alert>
       <div className="grid gap-2"><Label htmlFor="restaurantCode">Restaurant code</Label><div className="relative"><Store className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input id="restaurantCode" name="restaurantCode" defaultValue="DEMO" className="h-11 ps-9 uppercase" autoComplete="organization" required /></div></div>
       {manager ? (
         <>

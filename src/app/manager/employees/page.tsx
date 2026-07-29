@@ -19,9 +19,7 @@ export default function EmployeesPage() {
         <div>
           <p className="text-xs font-semibold tracking-[0.1em] text-primary uppercase">Restaurant team</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">Employees</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Read-only sample of staff roles, assignments, and current earnings.</p>
         </div>
-        <Badge variant="outline" className="w-fit">Demo data</Badge>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-3">

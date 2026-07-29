@@ -30,32 +30,43 @@ export async function POST(request: Request) {
     );
   }
 
-  const prisma = getPrisma();
-  const employee = await prisma.employee.findFirst({
-    where: {
-      employeeCode: parsed.data.employeeCode,
-      isActive: true,
-      restaurant: { code: parsed.data.restaurantCode },
-    },
-  });
+  try {
+    const prisma = getPrisma();
+    const employee = await prisma.employee.findFirst({
+      where: {
+        employeeCode: parsed.data.employeeCode,
+        isActive: true,
+        restaurant: { code: parsed.data.restaurantCode },
+      },
+    });
 
-  if (
-    !employee ||
-    !(await verifyCredential(parsed.data.pin, employee.pinHash))
-  ) {
+    if (
+      !employee ||
+      !(await verifyCredential(parsed.data.pin, employee.pinHash))
+    ) {
+      return NextResponse.json(
+        { error: "The employee code or PIN is not correct." },
+        { status: 401 },
+      );
+    }
+
+    clearLoginAttempts(rateLimitKey);
+    await setSession({
+      subjectId: employee.id,
+      restaurantId: employee.restaurantId,
+      role: "EMPLOYEE",
+      name: employee.name,
+    });
+
+    return NextResponse.json({ ok: true, redirectTo: "/employee" });
+  } catch (error) {
+    console.error("Employee sign-in dependency failed.", error);
     return NextResponse.json(
-      { error: "The employee code or PIN is not correct." },
-      { status: 401 },
+      {
+        error:
+          "TipSathi's database is unavailable. Ask a manager to start PostgreSQL.",
+      },
+      { status: 503 },
     );
   }
-
-  clearLoginAttempts(rateLimitKey);
-  await setSession({
-    subjectId: employee.id,
-    restaurantId: employee.restaurantId,
-    role: "EMPLOYEE",
-    name: employee.name,
-  });
-
-  return NextResponse.json({ ok: true, redirectTo: "/employee" });
 }
