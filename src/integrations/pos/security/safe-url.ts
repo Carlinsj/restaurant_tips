@@ -18,10 +18,12 @@ function isPrivateIpv4(address: string): boolean {
   );
 }
 
-function isPrivateIp(address: string): boolean {
+export function isPrivateIp(address: string): boolean {
   const normalized = address.toLowerCase();
   if (isIP(normalized) === 4) return isPrivateIpv4(normalized);
   if (isIP(normalized) === 6) {
+    const mappedIpv4 = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1];
+    if (mappedIpv4) return isPrivateIpv4(mappedIpv4);
     return (
       normalized === "::1" ||
       normalized === "::" ||
@@ -31,9 +33,7 @@ function isPrivateIp(address: string): boolean {
       normalized.startsWith("fe9") ||
       normalized.startsWith("fea") ||
       normalized.startsWith("feb") ||
-      normalized.startsWith("::ffff:127.") ||
-      normalized.startsWith("::ffff:10.") ||
-      normalized.startsWith("::ffff:192.168.")
+      normalized.startsWith("ff")
     );
   }
   return true;
@@ -60,6 +60,19 @@ export async function assertSafeExternalUrl(rawUrl: string): Promise<URL> {
     throw new PosIntegrationError("Credentials cannot be embedded in a POS URL.", "UNSAFE_URL");
   }
   const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  const outboundAllowlist = (process.env.POS_OUTBOUND_HOST_ALLOWLIST ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase().replace(/\.$/, ""))
+    .filter(Boolean);
+  if (
+    process.env.NODE_ENV === "production" &&
+    !outboundAllowlist.includes(hostname)
+  ) {
+    throw new PosIntegrationError(
+      "This POS host is not on the production outbound allowlist.",
+      "UNSAFE_URL",
+    );
+  }
   if (
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||

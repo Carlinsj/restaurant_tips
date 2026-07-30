@@ -5,6 +5,7 @@ import { getPrisma } from "@/lib/database/prisma";
 import { integrationDto } from "@/integrations/pos/presentation";
 import { encryptCredentials } from "@/integrations/pos/security/encryption";
 import { integrationUpdateSchema } from "@/lib/validation/integration";
+import { parseJsonRequest } from "@/lib/http/request";
 import { writeAuditLog } from "@/server/audit";
 
 export async function GET(
@@ -30,8 +31,8 @@ export async function PATCH(
 ) {
   const session = await requireManagerSession();
   if (!session) return NextResponse.json({ error: "Manager access required." }, { status: 401 });
-  const parsed = integrationUpdateSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: "The integration update is invalid." }, { status: 400 });
+  const parsed = await parseJsonRequest(request, integrationUpdateSchema);
+  if (!parsed.success) return NextResponse.json({ error: "The integration update is invalid." }, { status: parsed.status });
   const { id } = await context.params;
   const prisma = getPrisma();
   const existing = await prisma.posIntegration.findFirst({ where: { id, restaurantId: session.restaurantId } });

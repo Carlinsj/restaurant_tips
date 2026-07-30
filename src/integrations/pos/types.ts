@@ -1,11 +1,10 @@
 export type PosProviderName =
   | "GENERIC_API"
   | "CSV_IMPORT"
+  | "CHEFOS"
+  | "UNIVERSAL_WEBHOOK"
   | "MANUAL"
-  | "MOCK"
-  | "PETPOOJA"
-  | "RESTROWORKS"
-  | "CUSTOM";
+  | "MOCK";
 
 export type ExternalBillStatus = "OPEN" | "PAID" | "CANCELLED" | "REFUNDED";
 

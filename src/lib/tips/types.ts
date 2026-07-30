@@ -18,6 +18,21 @@ export type TipAllocationResult = {
   remainderPaise: number;
 };
 
+export type ActiveTableAssignment = {
+  employeeId: string;
+  tableId: string;
+};
+
+export type TableLoadAllocationResult = {
+  employeeId: string;
+  amountPaise: number;
+  kind: "TABLE_SPLIT";
+  activeTableCount: number;
+  shareBasisPoints: number;
+  totalShareBasisPoints: 10_000;
+  remainderPaise: number;
+};
+
 export type HybridInput = {
   amountPaise: number;
   directPercentage: number;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireManagerSession } from "@/lib/auth/authorize";
 import { getPrisma } from "@/lib/database/prisma";
+import { parseJsonRequest } from "@/lib/http/request";
 import { manualBillSchema } from "@/lib/validation/management";
 import { writeAuditLog } from "@/server/audit";
 
@@ -19,9 +20,9 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await requireManagerSession();
   if (!session) return NextResponse.json({ error: "Manager access required." }, { status: 401 });
-  const parsed = manualBillSchema.safeParse(await request.json());
+  const parsed = await parseJsonRequest(request, manualBillSchema);
   if (!parsed.success || parsed.data.subtotalPaise + parsed.data.taxPaise !== parsed.data.totalPaise) {
-    return NextResponse.json({ error: "Bill amounts must be valid paise values and subtotal plus tax must equal total." }, { status: 400 });
+    return NextResponse.json({ error: "Bill amounts must be valid paise values and subtotal plus tax must equal total." }, { status: parsed.success ? 400 : parsed.status });
   }
   const prisma = getPrisma();
   const [shift, table] = await Promise.all([

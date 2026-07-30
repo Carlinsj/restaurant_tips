@@ -1,8 +1,12 @@
 import { cookies } from "next/headers";
+import { randomUUID } from "node:crypto";
 import { jwtVerify, SignJWT } from "jose";
 
-const SESSION_COOKIE = "tipsathi_session";
-const SESSION_DURATION_SECONDS = 60 * 60 * 12;
+const DEVELOPMENT_SESSION_COOKIE = "tipsathi_session";
+const PRODUCTION_SESSION_COOKIE = "__Host-tipsathi_session";
+const SESSION_DURATION_SECONDS = 60 * 60 * 8;
+const SESSION_ISSUER = "tipsathi";
+const SESSION_AUDIENCE = "tipsathi-web";
 
 export type SessionRole = "OWNER" | "MANAGER" | "EMPLOYEE";
 
@@ -31,6 +35,9 @@ export async function createSessionToken(
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.subjectId)
+    .setIssuer(SESSION_ISSUER)
+    .setAudience(SESSION_AUDIENCE)
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION_SECONDS}s`)
     .sign(getSessionSecret());
@@ -40,7 +47,11 @@ export async function readSessionToken(
   token: string,
 ): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSessionSecret());
+    const { payload } = await jwtVerify(token, getSessionSecret(), {
+      algorithms: ["HS256"],
+      issuer: SESSION_ISSUER,
+      audience: SESSION_AUDIENCE,
+    });
     if (
       !payload.sub ||
       typeof payload.restaurantId !== "string" ||
@@ -64,22 +75,30 @@ export async function readSessionToken(
 
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const token =
+    cookieStore.get(PRODUCTION_SESSION_COOKIE)?.value ??
+    cookieStore.get(DEVELOPMENT_SESSION_COOKIE)?.value;
   return token ? readSessionToken(token) : null;
 }
 
 export async function setSession(payload: SessionPayload): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, await createSessionToken(payload), {
+  const cookieName =
+    process.env.NODE_ENV === "production"
+      ? PRODUCTION_SESSION_COOKIE
+      : DEVELOPMENT_SESSION_COOKIE;
+  cookieStore.set(cookieName, await createSessionToken(payload), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     maxAge: SESSION_DURATION_SECONDS,
     path: "/",
+    priority: "high",
   });
 }
 
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(PRODUCTION_SESSION_COOKIE);
+  cookieStore.delete(DEVELOPMENT_SESSION_COOKIE);
 }

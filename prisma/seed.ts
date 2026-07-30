@@ -10,6 +10,14 @@ import { hash } from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_DEMO_SEED !== "true"
+  ) {
+    throw new Error(
+      "Refusing to create known demo credentials in production. Set ALLOW_DEMO_SEED=true only for an isolated demo environment.",
+    );
+  }
   const [passwordHash, pinHash] = await Promise.all([
     hash("TipSathi123!", 12),
     hash("1234", 12),
@@ -112,18 +120,40 @@ async function main() {
         assignments: {
           create: [
             {
-              tableId: tables[5].id,
+              tableId: tables[2].id,
               employeeId: employees[0].id,
               assignmentRole: JobType.WAITER,
-              weight: 70,
+              weight: 100,
               startedAt: new Date(),
               isPrimary: true,
             },
             {
               tableId: tables[5].id,
+              employeeId: employees[0].id,
+              assignmentRole: JobType.WAITER,
+              weight: 100,
+              startedAt: new Date(),
+              isPrimary: true,
+            },
+            {
+              tableId: tables[1].id,
               employeeId: employees[1].id,
               assignmentRole: JobType.RUNNER,
-              weight: 30,
+              weight: 100,
+              startedAt: new Date(),
+            },
+            {
+              tableId: tables[2].id,
+              employeeId: employees[1].id,
+              assignmentRole: JobType.RUNNER,
+              weight: 100,
+              startedAt: new Date(),
+            },
+            {
+              tableId: tables[5].id,
+              employeeId: employees[1].id,
+              assignmentRole: JobType.RUNNER,
+              weight: 100,
               startedAt: new Date(),
             },
           ],
@@ -143,23 +173,100 @@ async function main() {
     });
   }
 
+  const desiredAssignments = [
+    {
+      tableId: tables[2].id,
+      employeeId: employees[0].id,
+      assignmentRole: JobType.WAITER,
+      isPrimary: true,
+    },
+    {
+      tableId: tables[5].id,
+      employeeId: employees[0].id,
+      assignmentRole: JobType.WAITER,
+      isPrimary: true,
+    },
+    {
+      tableId: tables[1].id,
+      employeeId: employees[1].id,
+      assignmentRole: JobType.RUNNER,
+      isPrimary: false,
+    },
+    {
+      tableId: tables[2].id,
+      employeeId: employees[1].id,
+      assignmentRole: JobType.RUNNER,
+      isPrimary: false,
+    },
+    {
+      tableId: tables[5].id,
+      employeeId: employees[1].id,
+      assignmentRole: JobType.RUNNER,
+      isPrimary: false,
+    },
+  ];
+  const currentAssignments = await prisma.tableAssignment.findMany({
+    where: { shiftId: shift.id, endedAt: null },
+    select: { employeeId: true, tableId: true },
+  });
+  for (const assignment of desiredAssignments) {
+    const exists = currentAssignments.some(
+      (current) =>
+        current.employeeId === assignment.employeeId &&
+        current.tableId === assignment.tableId,
+    );
+    if (exists) {
+      await prisma.tableAssignment.updateMany({
+        where: {
+          shiftId: shift.id,
+          employeeId: assignment.employeeId,
+          tableId: assignment.tableId,
+          endedAt: null,
+        },
+        data: {
+          assignmentRole: assignment.assignmentRole,
+          isPrimary: assignment.isPrimary,
+          weight: 100,
+        },
+      });
+    } else {
+      await prisma.tableAssignment.create({
+        data: {
+          shiftId: shift.id,
+          ...assignment,
+          weight: 100,
+          startedAt: new Date(),
+        },
+      });
+    }
+  }
+
   const existingRule = await prisma.tipRule.findFirst({
     where: {
       restaurantId: restaurant.id,
-      name: "Table team 70/30",
+      isDefault: true,
     },
   });
-  if (!existingRule) {
+  const workloadRule = {
+    name: "Workload-balanced table split",
+    strategy: DistributionStrategy.WEIGHTED,
+    isDefault: true,
+    configuration: {
+      version: 1,
+      formula: "inverse_active_table_count",
+      description: "Eligible staff weight = 1 / distinct active tables",
+    },
+  };
+  if (existingRule) {
+    await prisma.tipRule.update({
+      where: { id: existingRule.id },
+      data: workloadRule,
+    });
+  } else {
     await prisma.tipRule.create({
       data: {
         restaurantId: restaurant.id,
-        name: "Table team 70/30",
-        strategy: DistributionStrategy.WEIGHTED,
-        isDefault: true,
-        configuration: {
-          WAITER: 70,
-          RUNNER: 30,
-        },
+        ...workloadRule,
       },
     });
   }

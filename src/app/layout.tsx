@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     template: "%s · TipSathi",
   },
   description:
-    "A transparent tip tracking and distribution workspace for restaurant teams in India.",
+    "A transparent tip tracking and distribution workspace for restaurant teams.",
   applicationName: "TipSathi",
 };
 

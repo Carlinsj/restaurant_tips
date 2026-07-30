@@ -17,18 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { demoEmployees, demoShift, demoTables, recentTips } from "@/lib/demo-data";
+import type { ManagerDashboardData } from "@/lib/demo-data";
 import { formatInr } from "@/lib/currency";
 import { cn } from "@/lib/utils";
-
-type RecentTip = {
-  id: string;
-  table: string;
-  time: string;
-  amountPaise: number;
-  method: "Cash" | "Digital";
-  split: string;
-};
 
 const statusStyle: Record<string, string> = {
   Open: "border-border bg-background text-muted-foreground",
@@ -38,11 +29,13 @@ const statusStyle: Record<string, string> = {
   Settled: "border-border bg-muted text-muted-foreground",
 };
 
-export function ManagerDashboard() {
-  const totalTips = demoShift.totalTipsPaise;
-  const displayedTips: RecentTip[] = recentTips
-    .map((tip) => ({ ...tip, id: `${tip.table}-${tip.time}` }))
-    .slice(0, 5);
+export function ManagerDashboard({ data }: { data: ManagerDashboardData }) {
+  const totalTips = data.shift.totalTipsPaise;
+  const displayedTips = data.recentTips.slice(0, 5);
+  const digitalPercent =
+    totalTips > 0
+      ? Math.round((data.shift.digitalTipsPaise * 100) / totalTips)
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -63,9 +56,9 @@ export function ManagerDashboard() {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Confirmed tips", value: formatInr(totalTips), detail: "+18% vs last Wed", icon: CircleDollarSign },
-          { label: "Average tip", value: `${demoShift.averageTipPercent}%`, detail: "Target 10%", icon: ReceiptIndianRupee },
-          { label: "Bills settled", value: `${demoShift.billsPaid} / ${demoShift.billsTotal}`, detail: "11 still open", icon: WalletCards },
-          { label: "Team on duty", value: String(demoShift.employeesOnDuty), detail: "7 floor · 1 break", icon: Users },
+          { label: "Average tip", value: `${data.shift.averageTipPercent}%`, detail: "Target 10%", icon: ReceiptIndianRupee },
+          { label: "Bills settled", value: `${data.shift.billsPaid} / ${data.shift.billsTotal}`, detail: "11 still open", icon: WalletCards },
+          { label: "Team on duty", value: String(data.shift.employeesOnDuty), detail: "7 floor · 1 break", icon: Users },
         ].map((metric) => (
           <Card key={metric.label} className="gap-3 py-4">
             <CardContent className="px-4">
@@ -82,7 +75,7 @@ export function ManagerDashboard() {
             <Button size="sm" variant="ghost" asChild className="text-xs"><Link href="/manager/tables">Manage floor <ChevronRight className="size-3.5" /></Link></Button>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2.5 p-3 sm:grid-cols-3 sm:p-4 lg:grid-cols-5">
-            {demoTables.map((table) => (
+            {data.tables.map((table) => (
               <Link href={`/manager/tables#table-${table.number}`} key={table.number} className="group min-h-[116px] rounded-lg border border-border bg-muted/25 p-3 transition-colors hover:border-primary/30 hover:bg-primary/5">
                 <div className="flex items-start justify-between"><span className="font-tabular text-lg font-semibold">{table.number}</span><span className="text-[10px] text-muted-foreground">{table.seats} seats</span></div>
                 <Badge variant="outline" className={`mt-3 h-5 rounded-full px-2 text-[9px] font-medium ${statusStyle[table.status]}`}>{table.status}</Badge>
@@ -109,8 +102,8 @@ export function ManagerDashboard() {
           <Card className="gap-3 py-4">
             <CardHeader className="px-5"><CardTitle className="text-sm">Tip mix</CardTitle></CardHeader>
             <CardContent className="flex items-center gap-5 px-5">
-              <div className="relative size-[94px] shrink-0 rounded-full" style={{ background: "conic-gradient(var(--primary) 0 70%, #d6a940 70% 100%)" }}><div className="absolute inset-[12px] flex items-center justify-center rounded-full bg-card"><span className="text-center text-[10px] text-muted-foreground"><strong className="block text-base text-foreground">70%</strong>digital</span></div></div>
-              <div className="min-w-0 flex-1 space-y-3 text-xs"><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-muted-foreground"><span className="size-2 rounded-full bg-primary" aria-hidden="true" /> Digital</span><strong className="font-tabular">{formatInr(demoShift.digitalTipsPaise)}</strong></div><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-muted-foreground"><span className="size-2 rounded-full bg-amber-500" aria-hidden="true" /> Cash</span><strong className="font-tabular">{formatInr(demoShift.cashTipsPaise)}</strong></div></div>
+              <div className="relative size-[94px] shrink-0 rounded-full" style={{ background: `conic-gradient(var(--primary) 0 ${digitalPercent}%, #d6a940 ${digitalPercent}% 100%)` }}><div className="absolute inset-[12px] flex items-center justify-center rounded-full bg-card"><span className="text-center text-[10px] text-muted-foreground"><strong className="block text-base text-foreground">{digitalPercent}%</strong>digital</span></div></div>
+              <div className="min-w-0 flex-1 space-y-3 text-xs"><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-muted-foreground"><span className="size-2 rounded-full bg-primary" aria-hidden="true" /> Digital</span><strong className="font-tabular">{formatInr(data.shift.digitalTipsPaise)}</strong></div><div className="flex items-center justify-between"><span className="flex items-center gap-2 text-muted-foreground"><span className="size-2 rounded-full bg-amber-500" aria-hidden="true" /> Cash</span><strong className="font-tabular">{formatInr(data.shift.cashTipsPaise)}</strong></div></div>
             </CardContent>
           </Card>
         </div>
@@ -129,7 +122,7 @@ export function ManagerDashboard() {
         <Card className="gap-0 py-0">
           <CardHeader className="flex-row items-center justify-between border-b border-border px-5 py-4"><div><CardTitle className="text-sm">Team earnings</CardTitle><p className="mt-1 text-xs text-muted-foreground">Current, before shift finalization</p></div><Button size="sm" variant="ghost" asChild className="text-xs"><Link href="/manager/employees">View team <ChevronRight className="size-3.5" aria-hidden="true" /></Link></Button></CardHeader>
           <CardContent className="divide-y divide-border px-5">
-            {demoEmployees.slice(0, 5).map((employee) => (
+            {data.employees.slice(0, 5).map((employee) => (
               <div key={employee.code} className="flex items-center gap-3 py-3"><Avatar className="size-8"><AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">{employee.initials}</AvatarFallback></Avatar><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{employee.name}</p><p className="mt-0.5 text-[10px] text-muted-foreground">{employee.role} · Tables {employee.tables}</p></div><strong className="font-tabular text-sm">{formatInr(employee.tipsPaise)}</strong></div>
             ))}
           </CardContent>

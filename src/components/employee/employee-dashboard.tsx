@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatInr } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
 import {
   summarizeShiftReports,
   type EmployeeDashboardData,
@@ -48,9 +48,9 @@ function formatHours(minutes: number): string {
   return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;
 }
 
-function formatSignedInr(paise: number): string {
-  if (paise === 0) return formatInr(0);
-  return `${paise > 0 ? "+" : "−"}${formatInr(Math.abs(paise))}`;
+function formatSignedCurrency(amountMinor: number, currency: string): string {
+  if (amountMinor === 0) return formatCurrency(0, currency);
+  return `${amountMinor > 0 ? "+" : "−"}${formatCurrency(Math.abs(amountMinor), currency)}`;
 }
 
 function payoutTone(status: string): string {
@@ -65,8 +65,10 @@ function payoutTone(status: string): string {
 
 function CurrentShiftCard({
   report,
+  currency,
 }: {
   report: PersonalShiftReport | null;
+  currency: string;
 }) {
   if (!report) {
     return (
@@ -90,7 +92,7 @@ function CurrentShiftCard({
               Your tips this shift
             </p>
             <p className="font-tabular mt-2 text-4xl font-semibold tracking-[-0.055em] sm:text-5xl">
-              {formatInr(report.totalPaise)}
+              {formatCurrency(report.totalPaise, currency)}
             </p>
             <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-200/80">
               <CheckCircle2 className="size-3.5" aria-hidden="true" />
@@ -102,19 +104,19 @@ function CurrentShiftCard({
             <div className="px-4">
               <p className="text-[10px] text-white/50">Direct</p>
               <p className="font-tabular mt-1 text-sm font-semibold">
-                {formatInr(report.directPaise)}
+                {formatCurrency(report.directPaise, currency)}
               </p>
             </div>
             <div className="px-4">
               <p className="text-[10px] text-white/50">Pool</p>
               <p className="font-tabular mt-1 text-sm font-semibold">
-                {formatInr(report.poolPaise)}
+                {formatCurrency(report.poolPaise, currency)}
               </p>
             </div>
             <div className="px-4">
               <p className="text-[10px] text-white/50">Adjustments</p>
               <p className="font-tabular mt-1 text-sm font-semibold">
-                {formatSignedInr(report.adjustmentsPaise)}
+                {formatSignedCurrency(report.adjustmentsPaise, currency)}
               </p>
             </div>
           </div>
@@ -204,7 +206,7 @@ export function EmployeeDashboard({
           <div className="min-w-0 space-y-6">
         {view === "current" && (
           <>
-        <CurrentShiftCard report={currentShift} />
+        <CurrentShiftCard report={currentShift} currency={data.currency} />
 
         {data.assignedTables.length > 0 && (
           <section aria-labelledby="assigned-tables-title">
@@ -250,12 +252,12 @@ export function EmployeeDashboard({
                       <p className="text-xs text-muted-foreground">
                         {table.billPaise === null
                           ? "No open bill"
-                          : `Bill · ${formatInr(table.billPaise)}`}
+                          : `Bill · ${formatCurrency(table.billPaise, data.currency)}`}
                       </p>
                       <p className="text-xs font-semibold text-primary">
                         {table.earnedPaise === null
                           ? "Awaiting tip"
-                          : `${formatSignedInr(table.earnedPaise)} to you`}
+                          : `${formatSignedCurrency(table.earnedPaise, data.currency)} to you`}
                       </p>
                     </div>
                   </CardContent>
@@ -293,7 +295,7 @@ export function EmployeeDashboard({
                     </p>
                   </div>
                   <strong className="font-tabular text-sm">
-                    {formatSignedInr(allocation.amountPaise)}
+                    {formatSignedCurrency(allocation.amountPaise, data.currency)}
                   </strong>
                 </div>
               ))}
@@ -318,19 +320,19 @@ export function EmployeeDashboard({
             {[
               {
                 label: "Recent earnings",
-                value: formatInr(summary.recentTotalPaise),
+                value: formatCurrency(summary.recentTotalPaise, data.currency),
                 detail: `${summary.shiftCount} shifts`,
                 icon: ReceiptIndianRupee,
               },
               {
                 label: "Average per shift",
-                value: formatInr(summary.averagePerShiftPaise),
+                value: formatCurrency(summary.averagePerShiftPaise, data.currency),
                 detail: "Across recent shifts",
                 icon: TrendingUp,
               },
               {
                 label: "Best shift",
-                value: formatInr(summary.bestShiftPaise),
+                value: formatCurrency(summary.bestShiftPaise, data.currency),
                 detail: "Highest recent total",
                 icon: CalendarDays,
               },
@@ -408,7 +410,7 @@ export function EmployeeDashboard({
                             Direct
                           </dt>
                           <dd className="font-tabular mt-1 text-xs font-medium">
-                            {formatInr(report.directPaise)}
+                            {formatCurrency(report.directPaise, data.currency)}
                           </dd>
                         </div>
                         <div>
@@ -416,7 +418,7 @@ export function EmployeeDashboard({
                             Pool
                           </dt>
                           <dd className="font-tabular mt-1 text-xs font-medium">
-                            {formatInr(report.poolPaise)}
+                            {formatCurrency(report.poolPaise, data.currency)}
                           </dd>
                         </div>
                         <div className="text-end">
@@ -424,14 +426,14 @@ export function EmployeeDashboard({
                             Total
                           </dt>
                           <dd className="font-tabular mt-1 text-xs font-semibold">
-                            {formatInr(report.totalPaise)}
+                            {formatCurrency(report.totalPaise, data.currency)}
                           </dd>
                         </div>
                       </dl>
                       {report.adjustmentsPaise !== 0 && (
                         <p className="mt-2 text-end text-[10px] text-muted-foreground">
                           Adjustments{" "}
-                          {formatSignedInr(report.adjustmentsPaise)}
+                          {formatSignedCurrency(report.adjustmentsPaise, data.currency)}
                         </p>
                       )}
                     </article>
@@ -475,16 +477,16 @@ export function EmployeeDashboard({
                             {report.tipCount}
                           </TableCell>
                           <TableCell className="font-tabular text-end text-xs">
-                            {formatInr(report.directPaise)}
+                            {formatCurrency(report.directPaise, data.currency)}
                           </TableCell>
                           <TableCell className="font-tabular text-end text-xs">
-                            {formatInr(report.poolPaise)}
+                            {formatCurrency(report.poolPaise, data.currency)}
                           </TableCell>
                           <TableCell className="font-tabular text-end text-xs">
-                            {formatSignedInr(report.adjustmentsPaise)}
+                            {formatSignedCurrency(report.adjustmentsPaise, data.currency)}
                           </TableCell>
                           <TableCell className="font-tabular text-end text-xs font-semibold">
-                            {formatInr(report.totalPaise)}
+                            {formatCurrency(report.totalPaise, data.currency)}
                           </TableCell>
                           <TableCell className="pe-5 text-end">
                             <Badge
@@ -506,7 +508,10 @@ export function EmployeeDashboard({
         )}
 
         {view === "reports" && (
-          <EmployeeReportCharts reports={data.shiftReports} />
+          <EmployeeReportCharts
+            reports={data.shiftReports}
+            currency={data.currency}
+          />
         )}
           </div>
         </div>

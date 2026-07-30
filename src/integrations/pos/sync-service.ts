@@ -11,8 +11,9 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import { getPrisma } from "@/lib/database/prisma";
-import { calculateWeightedAllocation } from "@/lib/tips";
+import { calculateTableLoadAllocation } from "@/lib/tips";
 import { writeAuditLog } from "@/server/audit";
+import { normalizeCurrencyCode } from "@/lib/currency";
 import type { PosAdapter } from "./adapter";
 import { PosIntegrationError } from "./adapter";
 import { matchExternalEmployee, matchExternalTable } from "./matching";
@@ -223,7 +224,11 @@ async function ensureImportedEmployeeAssignment(
         externalEmployeeId: bill.externalEmployeeId,
       },
     },
-    include: { employee: true },
+    include: {
+      employee: {
+        select: { id: true, jobType: true },
+      },
+    },
   });
   if (!mapping?.employee) return;
   const activeAssignments = await transaction.tableAssignment.findMany({
@@ -268,23 +273,20 @@ async function importConfirmedTip(
   const assignments = await transaction.tableAssignment.findMany({
     where: {
       shiftId: localBill.shiftId,
-      tableId: localBill.tableId,
       endedAt: null,
     },
-    select: { employeeId: true, weight: true },
+    select: { employeeId: true, tableId: true },
   });
-  if (assignments.length === 0) {
+  if (!assignments.some((assignment) => assignment.tableId === localBill.tableId)) {
     throw new PosIntegrationError(
       "The bill was imported, but its tip needs a mapped table assignment before allocation.",
       "MAPPING_REQUIRED",
     );
   }
-  const allocations = calculateWeightedAllocation(
+  const allocations = calculateTableLoadAllocation(
     external.tipPaise,
-    assignments.map((assignment) => ({
-      employeeId: assignment.employeeId,
-      share: assignment.weight,
-    })),
+    localBill.tableId,
+    assignments,
   );
   const tip = await transaction.tip.create({
     data: {
@@ -304,12 +306,13 @@ async function importConfirmedTip(
           employeeId: allocation.employeeId,
           allocationType: AllocationType.TABLE_SPLIT,
           amountPaise: allocation.amountPaise,
-          weight: allocation.share,
+          weight: allocation.shareBasisPoints,
           calculationDetails: {
-            strategy: "WEIGHTED",
+            strategy: "INVERSE_TABLE_LOAD_V1",
             source: "POS_IMPORT",
             externalReference,
-            totalShares: allocation.totalShares,
+            activeTableCount: allocation.activeTableCount,
+            shareBasisPoints: allocation.shareBasisPoints,
             remainderPaise: allocation.remainderPaise,
           },
         })),
@@ -337,16 +340,29 @@ export async function processExternalBill(
   external: ExternalBill,
   actorUserId?: string,
 ): Promise<"created" | "updated" | "ignored"> {
-  if (external.currency !== "INR") {
-    throw new PosIntegrationError("Only INR bills can be imported into this restaurant.", "INVALID_RESPONSE");
-  }
   if (external.totalPaise < 0 || external.subtotalPaise < 0 || (external.tipPaise ?? 0) < 0) {
     throw new PosIntegrationError("The POS bill contains a negative financial amount.", "INVALID_RESPONSE");
   }
-  const shift = await prisma.shift.findFirst({
-    where: { restaurantId: integration.restaurantId, status: "OPEN" },
-    orderBy: { startedAt: "desc" },
-  });
+  const [restaurant, shift] = await Promise.all([
+    prisma.restaurant.findUnique({
+      where: { id: integration.restaurantId },
+      select: { currency: true },
+    }),
+    prisma.shift.findFirst({
+      where: { restaurantId: integration.restaurantId, status: "OPEN" },
+      orderBy: { startedAt: "desc" },
+    }),
+  ]);
+  if (!restaurant) {
+    throw new PosIntegrationError("The integration restaurant no longer exists.", "INVALID_CONFIGURATION");
+  }
+  const restaurantCurrency = normalizeCurrencyCode(restaurant.currency);
+  if (normalizeCurrencyCode(external.currency) !== restaurantCurrency) {
+    throw new PosIntegrationError(
+      `The POS bill uses ${external.currency}, but this restaurant is configured for ${restaurantCurrency}.`,
+      "INVALID_RESPONSE",
+    );
+  }
   if (!shift) {
     throw new PosIntegrationError("Open a TipSathi shift before importing POS bills.", "MAPPING_REQUIRED");
   }

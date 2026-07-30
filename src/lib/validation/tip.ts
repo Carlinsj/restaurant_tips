@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { calculatePercentageTip } from "@/lib/currency";
 
 export const publicTipSchema = z
   .object({
@@ -24,3 +25,20 @@ export const weightedRuleSchema = z.object({
       "Tip weights must total 100.",
     ),
 });
+
+export function isValidPublicTipAmount(
+  billTotalPaise: number,
+  tip: { amountPaise: number; percentage?: number | null },
+): boolean {
+  if (
+    !Number.isSafeInteger(billTotalPaise) ||
+    billTotalPaise < 0 ||
+    tip.amountPaise > billTotalPaise
+  ) {
+    return false;
+  }
+  return (
+    tip.percentage == null ||
+    calculatePercentageTip(billTotalPaise, tip.percentage) === tip.amountPaise
+  );
+}

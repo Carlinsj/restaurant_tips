@@ -1,4 +1,5 @@
 import { LogOut } from "lucide-react";
+import { signOutAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +14,7 @@ export function LogoutButton({
 }: LogoutButtonProps) {
   if (appearance === "icon") {
     return (
-      <form action="/api/auth/logout" method="post">
+      <form action={signOutAction}>
         <Button
           type="submit"
           variant="ghost"
@@ -29,7 +30,7 @@ export function LogoutButton({
 
   if (appearance === "button") {
     return (
-      <form action="/api/auth/logout" method="post">
+      <form action={signOutAction}>
         <Button type="submit" variant="outline">
           <LogOut className="size-4" aria-hidden="true" />
           Sign out
@@ -39,7 +40,7 @@ export function LogoutButton({
   }
 
   return (
-    <form action="/api/auth/logout" method="post">
+    <form action={signOutAction}>
       <button
         type="submit"
         className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-white/60 transition-colors hover:bg-white/7 hover:text-white"

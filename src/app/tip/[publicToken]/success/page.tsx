@@ -1,20 +1,28 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Check, HeartHandshake, Home, ReceiptText, ShieldCheck } from "lucide-react";
+import {
+  Check,
+  HeartHandshake,
+  Home,
+  ReceiptText,
+  ShieldCheck,
+} from "lucide-react";
 import { Brand } from "@/components/shared/brand";
 import { Button } from "@/components/ui/button";
-import { formatInr } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
 import { getPrisma } from "@/lib/database/prisma";
+import { isDatabaseReachable } from "@/lib/database/reachability";
+import { readDemoLedger } from "@/lib/demo-ledger";
 
-export const metadata: Metadata = { title: "Tip confirmed" };
+export const metadata: Metadata = { title: "Tip submitted" };
 
 export default async function TipSuccessPage({
   params,
   searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
-  searchParams: Promise<{ amount?: string; tip?: string }>;
+  searchParams: Promise<{ tip?: string }>;
 }) {
   const [{ publicToken }, query] = await Promise.all([params, searchParams]);
   const isDemo = publicToken === "demo-bill";
@@ -22,23 +30,43 @@ export default async function TipSuccessPage({
   let amountPaise = 0;
   let billNumber = "INV-1024-DEMO";
   let tableNumber = 6;
+  let currency = "INR";
+  let tipStatus: string | null = null;
+  let allocations: { name: string; amountPaise: number }[] = [];
 
-  if (isDemo) {
-    const parsedAmount = Number(query.amount);
-    amountPaise = Number.isSafeInteger(parsedAmount) && parsedAmount >= 0 ? parsedAmount : 0;
+  if (!query.tip) notFound();
+  const demoEvent = isDemo
+    ? (await readDemoLedger()).events.find((event) => event.id === query.tip)
+    : null;
+  if (demoEvent) {
+    amountPaise = demoEvent.amountPaise;
+    tipStatus = "CONFIRMED";
+    allocations = [
+      { name: "Arjun Mehta", amountPaise: demoEvent.arjunPaise },
+      { name: "Priya Shah", amountPaise: demoEvent.priyaPaise },
+    ].filter((allocation) => allocation.amountPaise > 0);
   } else {
-    if (!query.tip) notFound();
+    if (isDemo && !(await isDatabaseReachable())) notFound();
     const tip = await getPrisma().tip.findFirst({
       where: {
         id: query.tip,
-        status: "CONFIRMED",
+        status: { in: ["PENDING", "CONFIRMED"] },
         bill: { publicToken },
       },
       select: {
         amountPaise: true,
+        status: true,
+        allocations: {
+          select: {
+            amountPaise: true,
+            employee: { select: { name: true } },
+          },
+          orderBy: { amountPaise: "desc" },
+        },
         bill: {
           select: {
             billNumber: true,
+            restaurant: { select: { currency: true } },
             table: { select: { number: true } },
           },
         },
@@ -48,7 +76,14 @@ export default async function TipSuccessPage({
     amountPaise = tip.amountPaise;
     billNumber = tip.bill.billNumber;
     tableNumber = tip.bill.table.number;
+    currency = tip.bill.restaurant.currency;
+    tipStatus = tip.status;
+    allocations = tip.allocations.map((allocation) => ({
+      name: allocation.employee.name,
+      amountPaise: allocation.amountPaise,
+    }));
   }
+  const isRecordedDemo = isDemo && tipStatus === "CONFIRMED";
 
   return (
     <main className="flex min-h-screen flex-col bg-[#f7f2e8]">
@@ -61,29 +96,50 @@ export default async function TipSuccessPage({
             <Check className="size-7" strokeWidth={2.5} aria-hidden="true" />
           </span>
           <p className="mt-6 text-xs font-semibold tracking-wider text-primary uppercase">
-            {isDemo ? "Practice complete" : "Confirmed"}
+            {isRecordedDemo
+              ? "Practice applied"
+                : "Submitted"}
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
-            {isDemo ? "Customer flow complete" : "Thank you for your kindness"}
+            {isRecordedDemo
+              ? "Practice flow reflected"
+                : "Thank you for your kindness"}
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
-            {isDemo
-              ? "No tip was recorded and no payment method was charged."
+            {isRecordedDemo
+              ? `${formatCurrency(amountPaise, currency)} was confirmed for Table ${tableNumber} and allocated to the assigned team below. No payment was charged.`
               : amountPaise > 0
-                ? `Your ${formatInr(amountPaise)} tip was recorded for the team that served Table ${tableNumber}.`
+                ? `Your ${formatCurrency(amountPaise, currency)} tip selection was submitted for Table ${tableNumber}. It will appear in earnings after the restaurant's payment record confirms it.`
                 : "Your choice was recorded. Thank you for dining with us."}
           </p>
 
           {amountPaise > 0 && (
             <div className="mt-6 rounded-2xl bg-[#173a34] p-5 text-white">
               <HeartHandshake className="mx-auto size-5 text-[#f5c95f]" aria-hidden="true" />
-              <p className="mt-3 text-xs text-white/50">{isDemo ? "Selected tip" : "Tip recorded"}</p>
+              <p className="mt-3 text-xs text-white/50">{isDemo ? "Selected tip" : "Tip submitted"}</p>
               <p className="font-tabular mt-1 text-3xl font-semibold tracking-[-0.04em]">
-                {formatInr(amountPaise)}
+                {formatCurrency(amountPaise, currency)}
               </p>
               <p className="mt-2 text-[10px] text-[#9bc4b5]">
-                {isDemo ? "Practice mode · not recorded" : "Allocation saved in paise · no rounding gap"}
+                {isRecordedDemo
+                  ? "Temporary practice data · no payment charged"
+                    : "Awaiting payment confirmation"}
               </p>
+              {isRecordedDemo && allocations.length > 0 && (
+                <div className="mt-4 divide-y divide-white/10 border-t border-white/10 pt-2 text-xs">
+                  {allocations.map((allocation) => (
+                    <div
+                      key={allocation.name}
+                      className="flex items-center justify-between py-2"
+                    >
+                      <span className="text-white/65">{allocation.name}</span>
+                      <strong className="font-tabular">
+                        {formatCurrency(allocation.amountPaise, currency)}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -92,7 +148,8 @@ export default async function TipSuccessPage({
               <ReceiptText className="size-3" aria-hidden="true" /> Bill {billNumber}
             </span>
             <span className="flex items-center gap-1">
-              <ShieldCheck className="size-3" aria-hidden="true" /> {isDemo ? "Practice" : "Auditable"}
+              <ShieldCheck className="size-3" aria-hidden="true" />{" "}
+              {isRecordedDemo ? "Practice only" : "Auditable"}
             </span>
           </div>
           <Button variant="outline" asChild className="mt-7 w-full">

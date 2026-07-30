@@ -2,14 +2,19 @@ import { CheckCircle2, Clock3, WalletCards } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { demoEmployees } from "@/lib/demo-data";
 import { formatInr } from "@/lib/currency";
+import { getManagerDashboardData } from "@/server/manager-dashboard";
 
-export default function PayoutsPage() {
+export default async function PayoutsPage() {
+  const { employees } = await getManagerDashboardData();
+  const pendingPaise = employees.reduce(
+    (total, employee) => total + employee.tipsPaise,
+    0,
+  );
   const metrics = [
-    { label: "Pending payout", value: "₹10,590", icon: Clock3 },
+    { label: "Pending payout", value: formatInr(pendingPaise), icon: Clock3 },
     { label: "Paid this week", value: "₹48,720", icon: CheckCircle2 },
-    { label: "Employees pending", value: "8", icon: WalletCards },
+    { label: "Employees pending", value: String(employees.length), icon: WalletCards },
   ];
 
   return (
@@ -38,7 +43,7 @@ export default function PayoutsPage() {
       <Card className="gap-0 border-[#ded7ca] bg-white/76 py-0 shadow-none">
         <CardHeader className="border-b border-[#e8e1d6] px-5 py-4"><CardTitle className="text-sm">Dinner service · Pending</CardTitle></CardHeader>
         <CardContent className="divide-y divide-[#ebe5db] px-5">
-          {demoEmployees.slice(0, 6).map((employee) => (
+          {employees.slice(0, 6).map((employee) => (
             <div key={employee.code} className="flex items-center gap-3 py-3.5">
               <Avatar className="size-8"><AvatarFallback className="bg-[#e5eee9] text-[10px] font-semibold text-primary">{employee.initials}</AvatarFallback></Avatar>
               <div className="min-w-0 flex-1">

@@ -33,8 +33,8 @@ export function AuthShell({
         <div className="relative ms-auto flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65"><ShieldCheck className="size-3.5 text-amber-300" aria-hidden="true" /> Financial records stay restaurant-scoped</div>
         <div className="relative max-w-xl">
           <p className="text-sm font-medium text-amber-300">Clarity at closing time</p>
-          <h2 className="mt-4 text-4xl leading-[1.05] font-semibold tracking-[-0.05em] xl:text-5xl">The whole team can see how every rupee was shared.</h2>
-          <div className="mt-8 grid gap-3 text-sm text-white/65">{["Private, role-based earnings", "Paise-perfect allocations", "Every financial change audited"].map((item) => <p key={item} className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-200/80" aria-hidden="true" /> {item}</p>)}</div>
+          <h2 className="mt-4 text-4xl leading-[1.05] font-semibold tracking-[-0.05em] xl:text-5xl">The whole team can see how every tip was shared.</h2>
+          <div className="mt-8 grid gap-3 text-sm text-white/65">{["Private, role-based earnings", "Exact currency allocation", "Every financial change audited"].map((item) => <p key={item} className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-200/80" aria-hidden="true" /> {item}</p>)}</div>
         </div>
         <p className="relative text-xs text-white/35">TipSathi · Transparent tips for restaurant teams</p>
       </section>

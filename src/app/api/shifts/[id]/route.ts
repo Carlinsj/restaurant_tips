@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireManagerSession } from "@/lib/auth/authorize";
 import { getPrisma } from "@/lib/database/prisma";
+import { parseJsonRequest } from "@/lib/http/request";
 import { isValidShiftTransition } from "@/lib/validation/management";
 import { writeAuditLog } from "@/server/audit";
 
@@ -20,8 +21,39 @@ export async function GET(
   const shift = await getPrisma().shift.findFirst({
     where: { id, restaurantId: session.restaurantId },
     include: {
-      employees: { include: { employee: true } },
-      assignments: { include: { employee: true, table: true } },
+      employees: {
+        include: {
+          employee: {
+            select: {
+              id: true,
+              restaurantId: true,
+              name: true,
+              employeeCode: true,
+              jobType: true,
+              isActive: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+        },
+      },
+      assignments: {
+        include: {
+          employee: {
+            select: {
+              id: true,
+              restaurantId: true,
+              name: true,
+              employeeCode: true,
+              jobType: true,
+              isActive: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+          table: true,
+        },
+      },
       bills: { include: { tips: { include: { allocations: true } } } },
     },
   });
@@ -38,9 +70,9 @@ export async function PATCH(
   if (!session) {
     return NextResponse.json({ error: "Manager access required." }, { status: 401 });
   }
-  const parsed = transitionSchema.safeParse(await request.json());
+  const parsed = await parseJsonRequest(request, transitionSchema);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid shift status." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid shift status." }, { status: parsed.status });
   }
   const { id } = await context.params;
   const prisma = getPrisma();

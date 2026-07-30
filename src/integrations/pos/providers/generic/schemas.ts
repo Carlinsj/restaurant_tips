@@ -3,70 +3,76 @@ import { z } from "zod";
 const relativeEndpointSchema = z
   .string()
   .trim()
+  .max(512)
   .regex(/^\/(?!\/)/, "Endpoint paths must start with one forward slash.")
   .refine((value) => !value.includes("\\") && !value.includes("@"), "Endpoint path is unsafe.");
 
+const requiredPathSchema = z.string().trim().min(1).max(256);
+const optionalPathSchema = requiredPathSchema.optional();
+
 export const genericFieldMappingSchema = z.object({
-  billId: z.string().min(1),
-  billNumber: z.string().min(1),
-  outletId: z.string().optional(),
-  tableId: z.string().optional(),
-  tableName: z.string().optional(),
-  employeeId: z.string().optional(),
-  employeeName: z.string().optional(),
-  tipId: z.string().optional(),
-  subtotal: z.string().min(1),
-  tax: z.string().optional(),
-  total: z.string().min(1),
-  tip: z.string().optional(),
-  currency: z.string().optional(),
-  status: z.string().min(1),
-  openedAt: z.string().optional(),
-  paidAt: z.string().optional(),
-  updatedAt: z.string().optional(),
+  billId: requiredPathSchema,
+  billNumber: requiredPathSchema,
+  outletId: optionalPathSchema,
+  tableId: optionalPathSchema,
+  tableName: optionalPathSchema,
+  employeeId: optionalPathSchema,
+  employeeName: optionalPathSchema,
+  tipId: optionalPathSchema,
+  subtotal: requiredPathSchema,
+  tax: optionalPathSchema,
+  total: requiredPathSchema,
+  tip: optionalPathSchema,
+  currency: optionalPathSchema,
+  status: requiredPathSchema,
+  openedAt: optionalPathSchema,
+  paidAt: optionalPathSchema,
+  updatedAt: optionalPathSchema,
 });
 
 export const genericEmployeeMappingSchema = z.object({
-  employeeId: z.string().min(1),
-  employeeCode: z.string().optional(),
-  name: z.string().min(1),
-  role: z.string().optional(),
-  isActive: z.string().optional(),
-  updatedAt: z.string().optional(),
+  employeeId: requiredPathSchema,
+  employeeCode: optionalPathSchema,
+  name: requiredPathSchema,
+  role: optionalPathSchema,
+  isActive: optionalPathSchema,
+  updatedAt: optionalPathSchema,
 });
 
 export const genericTableMappingSchema = z.object({
-  tableId: z.string().min(1),
-  tableNumber: z.string().optional(),
-  name: z.string().min(1),
-  capacity: z.string().optional(),
-  isActive: z.string().optional(),
-  updatedAt: z.string().optional(),
+  tableId: requiredPathSchema,
+  tableNumber: optionalPathSchema,
+  name: requiredPathSchema,
+  capacity: optionalPathSchema,
+  isActive: optionalPathSchema,
+  updatedAt: optionalPathSchema,
 });
 
 export const genericOutletMappingSchema = z.object({
-  outletId: z.string().min(1),
-  name: z.string().min(1),
-  code: z.string().optional(),
-  timezone: z.string().optional(),
+  outletId: requiredPathSchema,
+  name: requiredPathSchema,
+  code: optionalPathSchema,
+  timezone: optionalPathSchema,
 });
 
 export const genericPosSettingsSchema = z.object({
-  baseUrl: z.string().url(),
+  baseUrl: z.string().url().max(2048),
   authType: z.enum(["NONE", "API_KEY", "BEARER_TOKEN", "BASIC_AUTH"]),
   apiKeyHeaderName: z
     .string()
     .regex(/^[A-Za-z0-9-]+$/)
     .optional(),
   timeoutMs: z.number().int().min(1_000).max(30_000).default(8_000),
-  moneyUnit: z.enum(["RUPEES", "PAISE"]).default("RUPEES"),
+  moneyUnit: z.enum(["MAJOR", "MINOR", "RUPEES", "PAISE"]).default("MAJOR"),
+  defaultCurrency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).default("INR"),
+  minorUnitDigits: z.number().int().min(0).max(3).optional(),
   endpoints: z.object({
     bills: relativeEndpointSchema.optional(),
     employees: relativeEndpointSchema.optional(),
     tables: relativeEndpointSchema.optional(),
     outlets: relativeEndpointSchema.optional(),
   }),
-  responseDataPath: z.string().optional(),
+  responseDataPath: optionalPathSchema,
   billFields: genericFieldMappingSchema,
   employeeFields: genericEmployeeMappingSchema.optional(),
   tableFields: genericTableMappingSchema.optional(),
@@ -74,9 +80,9 @@ export const genericPosSettingsSchema = z.object({
   statusMappings: z.record(z.string(), z.enum(["OPEN", "PAID", "CANCELLED", "REFUNDED"])).default({}),
   webhook: z
     .object({
-      eventIdPath: z.string().min(1),
-      eventTypePath: z.string().min(1),
-      dataPath: z.string().min(1),
+      eventIdPath: requiredPathSchema,
+      eventTypePath: requiredPathSchema,
+      dataPath: requiredPathSchema,
       eventTypeMappings: z.record(
         z.string(),
         z.enum([

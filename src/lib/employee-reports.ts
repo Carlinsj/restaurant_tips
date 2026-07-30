@@ -50,6 +50,7 @@ export type PersonalShiftReport = {
 };
 
 export type EmployeeDashboardData = {
+  currency: string;
   employee: {
     name: string;
     firstName: string;
@@ -221,11 +222,11 @@ const demoShiftReports: PersonalShiftReport[] = [
     date: "2026-07-22",
     status: "Open",
     payoutStatus: "In progress",
-    tipCount: 8,
-    directPaise: 128_800,
+    tipCount: 7,
+    directPaise: 114_800,
     poolPaise: 55_200,
     adjustmentsPaise: 0,
-    totalPaise: 184_000,
+    totalPaise: 170_000,
     minutesWorked: 240,
   },
   {
@@ -270,6 +271,7 @@ const demoShiftReports: PersonalShiftReport[] = [
 ];
 
 export const demoEmployeeDashboardData: EmployeeDashboardData = {
+  currency: "INR",
   employee: {
     name: "Arjun Mehta",
     firstName: "Arjun",
@@ -289,20 +291,12 @@ export const demoEmployeeDashboardData: EmployeeDashboardData = {
     {
       id: "table-6",
       number: 6,
-      status: "Tip received",
+      status: "Bill ready",
       billPaise: 200_000,
-      earnedPaise: 14_000,
+      earnedPaise: null,
     },
   ],
   recentAllocations: [
-    {
-      id: "allocation-6",
-      tableNumber: 6,
-      time: "9:42 PM",
-      source: "POS import",
-      amountPaise: 14_000,
-      allocationLabel: "Direct share",
-    },
     {
       id: "allocation-1",
       tableNumber: 1,

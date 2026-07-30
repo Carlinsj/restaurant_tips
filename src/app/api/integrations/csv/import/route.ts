@@ -5,13 +5,14 @@ import { CsvPosAdapter } from "@/integrations/pos/providers/csv/adapter";
 import { safeIntegrationError } from "@/integrations/pos/security/redaction";
 import { syncPosIntegration } from "@/integrations/pos/sync-service";
 import { csvContentSchema } from "@/lib/validation/integration";
+import { parseJsonRequest } from "@/lib/http/request";
 import { writeAuditLog } from "@/server/audit";
 
 export async function POST(request: Request) {
   const session = await requireManagerSession();
   if (!session) return NextResponse.json({ error: "Manager access required." }, { status: 401 });
-  const parsed = csvContentSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: "Choose a CSV file smaller than 5 MB." }, { status: 400 });
+  const parsed = await parseJsonRequest(request, csvContentSchema, 5_500_000);
+  if (!parsed.success) return NextResponse.json({ error: "Choose a CSV file smaller than 5 MB." }, { status: parsed.status });
   try {
     const adapter = new CsvPosAdapter(parsed.data.csvContent);
     if (adapter.preview.validCount === 0) {

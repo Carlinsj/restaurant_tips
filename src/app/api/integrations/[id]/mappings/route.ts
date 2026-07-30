@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireManagerSession } from "@/lib/auth/authorize";
 import { getPrisma } from "@/lib/database/prisma";
 import { mappingUpdateSchema } from "@/lib/validation/integration";
+import { parseJsonRequest } from "@/lib/http/request";
 import { writeAuditLog } from "@/server/audit";
 
 export async function GET(
@@ -29,8 +30,8 @@ export async function PATCH(
 ) {
   const session = await requireManagerSession();
   if (!session) return NextResponse.json({ error: "Manager access required." }, { status: 401 });
-  const parsed = mappingUpdateSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: "Select a valid local record and mapping status." }, { status: 400 });
+  const parsed = await parseJsonRequest(request, mappingUpdateSchema);
+  if (!parsed.success) return NextResponse.json({ error: "Select a valid local record and mapping status." }, { status: parsed.status });
   const { id } = await context.params;
   const prisma = getPrisma();
   const integration = await prisma.posIntegration.findFirst({ where: { id, restaurantId: session.restaurantId } });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireManagerSession } from "@/lib/auth/authorize";
 import { getPrisma } from "@/lib/database/prisma";
+import { parseJsonRequest } from "@/lib/http/request";
 import { tableCreateSchema } from "@/lib/validation/management";
 import { writeAuditLog } from "@/server/audit";
 
@@ -21,9 +22,9 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Manager access required." }, { status: 401 });
   }
-  const parsed = tableCreateSchema.safeParse(await request.json());
+  const parsed = await parseJsonRequest(request, tableCreateSchema);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Enter a valid table name, number, and capacity." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid table name, number, and capacity." }, { status: parsed.status });
   }
 
   const prisma = getPrisma();

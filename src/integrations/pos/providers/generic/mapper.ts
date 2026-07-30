@@ -1,4 +1,8 @@
-import { parseRupeesToPaise } from "@/lib/currency";
+import {
+  currencyMinorUnitDigits,
+  normalizeCurrencyCode,
+  parseMajorToMinor,
+} from "@/lib/currency";
 import { PosIntegrationError } from "../../adapter";
 import { redactSecrets } from "../../security/redaction";
 import type {
@@ -61,21 +65,22 @@ function optionalDate(value: unknown): Date | undefined {
 
 export function parseExternalMoneyToPaise(
   value: unknown,
-  unit: "RUPEES" | "PAISE",
+  unit: "MAJOR" | "MINOR" | "RUPEES" | "PAISE",
   label: string,
+  minorUnitDigits = 2,
 ): number {
   if (typeof value !== "string" && typeof value !== "number") {
     throw new PosIntegrationError(`The POS response contains an invalid ${label}.`, "INVALID_RESPONSE");
   }
   const normalized = String(value).trim();
   try {
-    if (unit === "PAISE") {
-      if (!/^\d+$/.test(normalized)) throw new Error("not integer paise");
-      const paise = Number(normalized);
-      if (!Number.isSafeInteger(paise) || paise < 0) throw new Error("unsafe paise");
-      return paise;
+    if (unit === "MINOR" || unit === "PAISE") {
+      if (!/^\d+$/.test(normalized)) throw new Error("not integer minor units");
+      const minor = Number(normalized);
+      if (!Number.isSafeInteger(minor) || minor < 0) throw new Error("unsafe minor units");
+      return minor;
     }
-    return parseRupeesToPaise(normalized);
+    return parseMajorToMinor(normalized, minorUnitDigits);
   } catch {
     throw new PosIntegrationError(`The POS response contains an invalid ${label}.`, "INVALID_RESPONSE");
   }
@@ -102,6 +107,14 @@ export function mapGenericBill(
   const read = (path: string | undefined) => (path ? getNestedValue(raw, path) : undefined);
   const taxValue = read(fields.tax);
   const tipValue = read(fields.tip);
+  let currency: string;
+  try {
+    currency = normalizeCurrencyCode(optionalString(read(fields.currency)) ?? settings.defaultCurrency);
+  } catch {
+    throw new PosIntegrationError("The POS response contains an invalid currency code.", "INVALID_RESPONSE");
+  }
+  const minorUnitDigits =
+    settings.minorUnitDigits ?? currencyMinorUnitDigits(currency);
   return {
     externalBillId: requiredString(read(fields.billId), "bill ID"),
     externalOutletId: optionalString(read(fields.outletId)),
@@ -111,11 +124,11 @@ export function mapGenericBill(
     billNumber: requiredString(read(fields.billNumber), "bill number"),
     tableName: optionalString(read(fields.tableName)),
     employeeName: optionalString(read(fields.employeeName)),
-    subtotalPaise: parseExternalMoneyToPaise(read(fields.subtotal), settings.moneyUnit, "subtotal"),
-    taxPaise: taxValue === undefined ? 0 : parseExternalMoneyToPaise(taxValue, settings.moneyUnit, "tax"),
-    totalPaise: parseExternalMoneyToPaise(read(fields.total), settings.moneyUnit, "total"),
-    tipPaise: tipValue === undefined ? undefined : parseExternalMoneyToPaise(tipValue, settings.moneyUnit, "tip amount"),
-    currency: optionalString(read(fields.currency)) ?? "INR",
+    subtotalPaise: parseExternalMoneyToPaise(read(fields.subtotal), settings.moneyUnit, "subtotal", minorUnitDigits),
+    taxPaise: taxValue === undefined ? 0 : parseExternalMoneyToPaise(taxValue, settings.moneyUnit, "tax", minorUnitDigits),
+    totalPaise: parseExternalMoneyToPaise(read(fields.total), settings.moneyUnit, "total", minorUnitDigits),
+    tipPaise: tipValue === undefined ? undefined : parseExternalMoneyToPaise(tipValue, settings.moneyUnit, "tip amount", minorUnitDigits),
+    currency,
     status: normalizeExternalStatus(read(fields.status), settings.statusMappings),
     openedAt: optionalDate(read(fields.openedAt)),
     paidAt: optionalDate(read(fields.paidAt)),

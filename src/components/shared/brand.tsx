@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IndianRupee } from "lucide-react";
+import { CircleDollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type BrandProps = {
@@ -29,7 +29,7 @@ export function Brand({
             : "bg-primary text-primary-foreground",
         )}
       >
-        <IndianRupee className="size-[18px]" strokeWidth={2.5} />
+        <CircleDollarSign className="size-[18px]" strokeWidth={2.5} />
         <span className="absolute -end-0.5 -top-0.5 size-2.5 rounded-full border-2 border-current bg-[#f7c85b]" />
       </span>
       {!compact && (

@@ -39,11 +39,8 @@ describe("POS provider registry", () => {
   it("creates the mock provider without changing core logic", () => {
     const adapter = createPosAdapter("MOCK", {}, {});
     expect(adapter.providerName).toBe("MOCK");
-    expect(posProviders.some((provider) => provider.provider === "PETPOOJA" && !provider.available)).toBe(true);
-  });
-
-  it("rejects providers without documented adapters", () => {
-    expect(() => createPosAdapter("PETPOOJA", {}, {})).toThrow("not available");
+    expect(posProviders.some((provider) => provider.provider === "CHEFOS" && provider.available)).toBe(true);
+    expect(posProviders.some((provider) => provider.provider === "MOCK")).toBe(false);
   });
 });
 
@@ -146,6 +143,58 @@ describe("credential and webhook security", () => {
       adapter.verifyWebhookSignature({ rawBody, headers: new Headers(), signature: "bad" }),
     ).resolves.toBe(false);
   });
+
+  it("verifies and normalizes the ChefOS-ready webhook contract", async () => {
+    const adapter = createPosAdapter(
+      "CHEFOS",
+      { defaultCurrency: "KWD" },
+      { webhookSecret: "chefos-secret" },
+    );
+    const rawBody = JSON.stringify({
+      id: "evt-chefos-1",
+      type: "TIP_CONFIRMED",
+      data: {
+        bill: {
+          id: "bill-1",
+          number: "1042",
+          employeeId: "employee-17",
+          employeeName: "Alex",
+          tableId: "table-6",
+          tableName: "Table 6",
+          subtotalMinor: 20000,
+          totalMinor: 20000,
+          tipMinor: 2000,
+          status: "PAID",
+        },
+      },
+    });
+    const signature = createHmac("sha256", "chefos-secret")
+      .update(rawBody)
+      .digest("hex");
+
+    await expect(
+      adapter.verifyWebhookSignature({
+        rawBody,
+        headers: new Headers(),
+        signature: `sha256=${signature}`,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      adapter.handleWebhook({ rawBody, headers: new Headers() }),
+    ).resolves.toMatchObject([
+      {
+        providerEventId: "evt-chefos-1",
+        eventType: "TIP_CONFIRMED",
+        bill: {
+          externalBillId: "bill-1",
+          totalPaise: 20000,
+          tipPaise: 2000,
+          currency: "KWD",
+          status: "PAID",
+        },
+      },
+    ]);
+  });
 });
 
 describe("CSV imports", () => {
@@ -157,7 +206,7 @@ INV-2,7,bad,100,R001,PAID,2026-07-22T21:31:00+05:30`);
     expect(preview.errorCount).toBe(1);
     expect(preview.rows[0].bill?.totalPaise).toBe(200_000);
     expect(preview.rows[0].bill?.tipPaise).toBe(20_000);
-    expect(preview.rows[1].errors).toContain("Bill total is not a valid rupee amount.");
+    expect(preview.rows[1].errors).toContain("Bill total is not a valid currency amount.");
   });
 
   it("exports failed rows for correction", () => {
@@ -165,7 +214,7 @@ INV-2,7,bad,100,R001,PAID,2026-07-22T21:31:00+05:30`);
 INV-2,7,bad,R001,PAID`);
     const output = failedRowsToCsv(preview.rows);
     expect(output).toContain("row_number");
-    expect(output).toContain("Bill total is not a valid rupee amount.");
+    expect(output).toContain("Bill total is not a valid currency amount.");
   });
 
   it("recognizes common POS column names and values", () => {
@@ -188,6 +237,24 @@ INV-3,Table 12,"₹2,450.00",245,W001,Settled,2026-07-22T21:30:00+05:30`);
       totalPaise: 245_000,
       tipPaise: 24_500,
       status: "PAID",
+    });
+  });
+
+  it("imports ISO currencies and exact integer minor units", () => {
+    const preview = previewCsvImport(`bill_number,table_number,bill_total_minor,tip_amount_minor,employee_code,status,currency
+INV-JP-1,2,2450,250,S001,PAID,JPY
+INV-KW-1,3,20000,2000,S002,PAID,KWD`);
+
+    expect(preview.validCount).toBe(2);
+    expect(preview.rows[0].bill).toMatchObject({
+      totalPaise: 2450,
+      tipPaise: 250,
+      currency: "JPY",
+    });
+    expect(preview.rows[1].bill).toMatchObject({
+      totalPaise: 20000,
+      tipPaise: 2000,
+      currency: "KWD",
     });
   });
 });

@@ -1,4 +1,7 @@
-import { parseRupeesToPaise } from "@/lib/currency";
+import {
+  normalizeCurrencyCode,
+  parseCurrencyToMinor,
+} from "@/lib/currency";
 import type {
   ExternalBill,
   ExternalBillStatus,
@@ -31,7 +34,6 @@ export type CsvPreview = {
 const REQUIRED_COLUMNS = [
   "bill_number",
   "table_number",
-  "bill_total",
   "employee_code",
   "status",
 ] as const;
@@ -50,6 +52,10 @@ const COLUMN_ALIASES = {
     "grand_total_amount", "invoice_total", "check_total", "net_total",
     "amount", "amount_paid", "payable_amount",
   ],
+  bill_total_minor: [
+    "bill_total_minor", "total_minor", "total_amount_minor",
+    "amount_minor", "amount_paid_minor",
+  ],
   employee_code: [
     "employee_code", "staff_code", "server_code", "waiter_code",
     "captain_code", "steward_code", "employee_id", "staff_id", "server_id",
@@ -60,6 +66,12 @@ const COLUMN_ALIASES = {
   ],
   tip_amount: [
     "tip_amount", "tip", "gratuity", "gratuity_amount",
+  ],
+  tip_amount_minor: [
+    "tip_amount_minor", "tip_minor", "gratuity_minor",
+  ],
+  currency: [
+    "currency", "currency_code", "iso_currency", "iso_4217",
   ],
   paid_at: [
     "paid_at", "paid_time", "payment_time", "settled_at", "closed_at",
@@ -113,7 +125,13 @@ function normalizeColumnName(value: string): string {
 
 function canonicalColumnName(value: string): string {
   const normalized = normalizeColumnName(value);
-  return CANONICAL_COLUMN_BY_ALIAS.get(normalized) ?? normalized;
+  const direct = CANONICAL_COLUMN_BY_ALIAS.get(normalized);
+  if (direct) return direct;
+  const currencySuffix = normalized.match(/^(.+)_([a-z]{3})$/);
+  if (currencySuffix) {
+    return CANONICAL_COLUMN_BY_ALIAS.get(currencySuffix[1]) ?? normalized;
+  }
+  return normalized;
 }
 
 function tokenizeCsv(content: string): string[][] {
@@ -170,7 +188,12 @@ export function parseCsvRows(content: string): {
       "Two CSV columns describe the same field. Keep only one column for each bill detail.",
     );
   }
-  const missing = REQUIRED_COLUMNS.filter((column) => !headers.includes(column));
+  const missing: string[] = REQUIRED_COLUMNS.filter(
+    (column) => !headers.includes(column),
+  );
+  if (!headers.includes("bill_total") && !headers.includes("bill_total_minor")) {
+    missing.push("bill_total or bill_total_minor");
+  }
   if (missing.length > 0) {
     throw new Error(`CSV is missing required columns: ${missing.join(", ")}.`);
   }
@@ -190,13 +213,26 @@ function positiveTableNumber(value: string): number | undefined {
   return Number.isSafeInteger(number) && number > 0 ? number : undefined;
 }
 
-function parsePosRupeesToPaise(value: string): number {
+function parsePosMajorToMinor(value: string, currency: string): number {
   const normalized = value
     .trim()
-    .replace(/^(?:₹|inr|rs\.?)\s*/i, "")
-    .replace(/\s*(?:inr|rs\.?|rupees?)$/i, "")
+    .replace(new RegExp(`^${currency}\\s*`, "i"), "")
+    .replace(new RegExp(`\\s*${currency}$`, "i"), "")
+    .replace(/^[^\d]+/u, "")
     .trim();
-  return parseRupeesToPaise(normalized);
+  return parseCurrencyToMinor(normalized, currency);
+}
+
+function parseMinorAmount(value: string): number {
+  const normalized = value.trim().replaceAll(",", "");
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error("Minor-unit amounts must be whole numbers.");
+  }
+  const amount = Number(normalized);
+  if (!Number.isSafeInteger(amount)) {
+    throw new Error("Minor-unit amount is too large.");
+  }
+  return amount;
 }
 
 function csvStatus(value: string): ExternalBillStatus | undefined {
@@ -217,6 +253,12 @@ export function previewCsvImport(content: string): CsvPreview {
     const employeeCode = row.values.employee_code.toUpperCase();
     const tableNumber = positiveTableNumber(row.values.table_number);
     const status = csvStatus(row.values.status);
+    let currency = "INR";
+    try {
+      currency = normalizeCurrencyCode(row.values.currency || "INR");
+    } catch {
+      errors.push("Currency must be a valid three-letter ISO code, such as INR, USD, AED, or EUR.");
+    }
     if (!billNumber) errors.push("Bill number is required.");
     if (!employeeCode) errors.push("Employee code is required.");
     if (!tableNumber) errors.push("Table number must be a positive integer.");
@@ -230,16 +272,20 @@ export function previewCsvImport(content: string): CsvPreview {
     let totalPaise = 0;
     let tipPaise: number | undefined;
     try {
-      totalPaise = parsePosRupeesToPaise(row.values.bill_total);
+      totalPaise = row.values.bill_total_minor
+        ? parseMinorAmount(row.values.bill_total_minor)
+        : parsePosMajorToMinor(row.values.bill_total, currency);
       if (totalPaise <= 0) errors.push("Bill total must be greater than zero.");
     } catch {
-      errors.push("Bill total is not a valid rupee amount.");
+      errors.push("Bill total is not a valid currency amount.");
     }
-    if (row.values.tip_amount) {
+    if (row.values.tip_amount || row.values.tip_amount_minor) {
       try {
-        tipPaise = parsePosRupeesToPaise(row.values.tip_amount);
+        tipPaise = row.values.tip_amount_minor
+          ? parseMinorAmount(row.values.tip_amount_minor)
+          : parsePosMajorToMinor(row.values.tip_amount, currency);
       } catch {
-        errors.push("Tip amount is not a valid rupee amount.");
+        errors.push("Tip amount is not a valid currency amount.");
       }
     }
     const paidAt = optionalCsvDate(row.values.paid_at);
@@ -281,7 +327,7 @@ export function previewCsvImport(content: string): CsvPreview {
         taxPaise: 0,
         totalPaise,
         tipPaise,
-        currency: "INR",
+        currency,
         status,
         paidAt,
         rawPayload: row.values,

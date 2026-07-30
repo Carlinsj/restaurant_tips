@@ -22,7 +22,7 @@ import {
   previewCsvImport,
   type CsvPreview,
 } from "@/integrations/pos/providers/csv/parser";
-import { formatInr } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
 
 export function CsvImporter() {
   const [fileName, setFileName] = useState("");
@@ -112,7 +112,7 @@ export function CsvImporter() {
           <CardContent className="flex min-h-[340px] flex-col items-center justify-center p-8 text-center">
             <span className="flex size-14 items-center justify-center rounded-2xl bg-[#e5eee9] text-primary"><UploadCloud className="size-6" /></span>
             <h2 className="mt-5 text-base font-semibold">Choose a POS export</h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Include a bill or invoice number, table, total, staff code, and payment status. Tip amount and paid time are optional.</p>
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Include a bill or invoice number, table, total, staff code, and payment status. Add a three-letter currency code for non-INR files. Tip amount and paid time are optional.</p>
             <LabelledFileInput onChange={selectFile} />
             <p className="mt-3 text-[11px] text-muted-foreground">CSV only · Maximum 5 MB · Nothing imports before review</p>
           </CardContent>
@@ -126,12 +126,12 @@ export function CsvImporter() {
           </section>
 
           <Card className="gap-0 overflow-hidden border-[#ded7ca] bg-white/76 py-0 shadow-none">
-            <CardHeader className="flex-row items-center justify-between border-b border-[#e8e1d6] px-5 py-4"><div><CardTitle className="text-sm">Import preview</CardTitle><p className="mt-1 text-xs text-muted-foreground">Rupee values have been converted to integer paise for processing.</p></div>{preview.errorCount > 0 && <Button variant="outline" size="sm" onClick={downloadFailures} className="bg-white"><Download className="size-3.5" /> Failed rows</Button>}</CardHeader>
+            <CardHeader className="flex-row items-center justify-between border-b border-[#e8e1d6] px-5 py-4"><div><CardTitle className="text-sm">Import preview</CardTitle><p className="mt-1 text-xs text-muted-foreground">Amounts are stored as exact integer minor units for the selected currency.</p></div>{preview.errorCount > 0 && <Button variant="outline" size="sm" onClick={downloadFailures} className="bg-white"><Download className="size-3.5" /> Failed rows</Button>}</CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader><TableRow className="bg-[#faf8f3]"><TableHead className="ps-5">Row</TableHead><TableHead>Bill</TableHead><TableHead>Table</TableHead><TableHead>Employee</TableHead><TableHead>Total</TableHead><TableHead>Tip</TableHead><TableHead>Status</TableHead><TableHead className="pe-5">Validation</TableHead></TableRow></TableHeader>
-                  <TableBody>{preview.rows.map((row) => <TableRow key={row.rowNumber}><TableCell className="ps-5 font-mono text-[10px] text-muted-foreground">{row.rowNumber}</TableCell><TableCell className="text-xs font-medium">{row.source.bill_number || "—"}</TableCell><TableCell className="text-xs">{row.source.table_number || "—"}</TableCell><TableCell className="text-xs">{row.source.employee_code || "—"}</TableCell><TableCell className="font-tabular text-xs">{row.bill ? formatInr(row.bill.totalPaise) : row.source.bill_total || "—"}</TableCell><TableCell className="font-tabular text-xs">{row.bill?.tipPaise !== undefined ? formatInr(row.bill.tipPaise) : "—"}</TableCell><TableCell><Badge variant="outline" className="text-[9px]">{row.source.status || "Missing"}</Badge></TableCell><TableCell className="max-w-[250px] pe-5">{row.valid ? <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary"><CheckCircle2 className="size-3.5" /> Ready</span> : <span className="inline-flex items-start gap-1.5 text-[11px] leading-4 text-[#9d5d34]"><AlertCircle className="mt-0.5 size-3.5 shrink-0" /> {row.errors.join(" ")}</span>}</TableCell></TableRow>)}</TableBody>
+                  <TableBody>{preview.rows.map((row) => <TableRow key={row.rowNumber}><TableCell className="ps-5 font-mono text-[10px] text-muted-foreground">{row.rowNumber}</TableCell><TableCell className="text-xs font-medium">{row.source.bill_number || "—"}</TableCell><TableCell className="text-xs">{row.source.table_number || "—"}</TableCell><TableCell className="text-xs">{row.source.employee_code || "—"}</TableCell><TableCell className="font-tabular text-xs">{row.bill ? formatCurrency(row.bill.totalPaise, row.bill.currency) : row.source.bill_total || row.source.bill_total_minor || "—"}</TableCell><TableCell className="font-tabular text-xs">{row.bill?.tipPaise !== undefined ? formatCurrency(row.bill.tipPaise, row.bill.currency) : "—"}</TableCell><TableCell><Badge variant="outline" className="text-[9px]">{row.source.status || "Missing"}</Badge></TableCell><TableCell className="max-w-[250px] pe-5">{row.valid ? <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary"><CheckCircle2 className="size-3.5" /> Ready</span> : <span className="inline-flex items-start gap-1.5 text-[11px] leading-4 text-[#9d5d34]"><AlertCircle className="mt-0.5 size-3.5 shrink-0" /> {row.errors.join(" ")}</span>}</TableCell></TableRow>)}</TableBody>
                 </Table>
               </div>
             </CardContent>

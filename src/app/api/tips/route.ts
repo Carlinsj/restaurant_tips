@@ -2,7 +2,8 @@ import { AllocationType, TipMethod, TipStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { requireManagerSession } from "@/lib/auth/authorize";
 import { getPrisma } from "@/lib/database/prisma";
-import { calculateWeightedAllocation } from "@/lib/tips";
+import { parseJsonRequest } from "@/lib/http/request";
+import { calculateTableLoadAllocation } from "@/lib/tips";
 import { manualTipSchema } from "@/lib/validation/management";
 import { writeAuditLog } from "@/server/audit";
 
@@ -21,19 +22,23 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await requireManagerSession();
   if (!session) return NextResponse.json({ error: "Manager access required." }, { status: 401 });
-  const parsed = manualTipSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: "Enter a positive tip amount and a reason." }, { status: 400 });
+  const parsed = await parseJsonRequest(request, manualTipSchema);
+  if (!parsed.success) return NextResponse.json({ error: "Enter a positive tip amount and a reason." }, { status: parsed.status });
   const prisma = getPrisma();
   const bill = await prisma.bill.findFirst({
     where: { id: parsed.data.billId, restaurantId: session.restaurantId, status: { in: ["OPEN", "PAID"] } },
   });
   if (!bill) return NextResponse.json({ error: "Bill not found or no longer accepts tips." }, { status: 404 });
   const assignments = await prisma.tableAssignment.findMany({
-    where: { shiftId: bill.shiftId, tableId: bill.tableId, endedAt: null },
-    select: { employeeId: true, weight: true },
+    where: { shiftId: bill.shiftId, endedAt: null },
+    select: { employeeId: true, tableId: true },
   });
-  if (assignments.length === 0) return NextResponse.json({ error: "Assign at least one employee to this table first." }, { status: 409 });
-  const allocations = calculateWeightedAllocation(parsed.data.amountPaise, assignments.map((assignment) => ({ employeeId: assignment.employeeId, share: assignment.weight })));
+  if (!assignments.some((assignment) => assignment.tableId === bill.tableId)) return NextResponse.json({ error: "Assign at least one employee to this table first." }, { status: 409 });
+  const allocations = calculateTableLoadAllocation(
+    parsed.data.amountPaise,
+    bill.tableId,
+    assignments,
+  );
   const tip = await prisma.$transaction(async (transaction) => {
     const created = await transaction.tip.create({
       data: {
@@ -52,8 +57,8 @@ export async function POST(request: Request) {
             employeeId: allocation.employeeId,
             allocationType: AllocationType.TABLE_SPLIT,
             amountPaise: allocation.amountPaise,
-            weight: allocation.share,
-            calculationDetails: { strategy: "WEIGHTED", source: parsed.data.method, reason: parsed.data.reason, totalShares: allocation.totalShares, remainderPaise: allocation.remainderPaise },
+            weight: allocation.shareBasisPoints,
+            calculationDetails: { strategy: "INVERSE_TABLE_LOAD_V1", source: parsed.data.method, reason: parsed.data.reason, activeTableCount: allocation.activeTableCount, shareBasisPoints: allocation.shareBasisPoints, remainderPaise: allocation.remainderPaise },
           })),
         },
       },

@@ -27,6 +27,42 @@ import {
   type GenericPosSettings,
 } from "./schemas";
 
+const MAX_POS_RESPONSE_BYTES = 5 * 1024 * 1024;
+
+async function readBoundedResponse(
+  response: Response,
+  label: string,
+): Promise<Uint8Array> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_POS_RESPONSE_BYTES
+  ) {
+    throw new PosIntegrationError(`The ${label} response is too large.`, "INVALID_RESPONSE");
+  }
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > MAX_POS_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new PosIntegrationError(`The ${label} response is too large.`, "INVALID_RESPONSE");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export class GenericPosAdapter implements PosAdapter {
   readonly providerName = "GENERIC_API" as const;
   private readonly settings: GenericPosSettings;
@@ -108,11 +144,19 @@ export class GenericPosAdapter implements PosAdapter {
       throw new PosIntegrationError(`The ${label} endpoint returned HTTP ${response.status}.`, "CONNECTION_FAILED");
     }
 
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!/^application\/(?:[a-z0-9.-]+\+)?json(?:\s*;|$)/i.test(contentType)) {
+      throw new PosIntegrationError(`The ${label} endpoint did not return JSON.`, "INVALID_RESPONSE");
+    }
     let payload: unknown;
     try {
-      payload = await response.json();
-    } catch {
-      throw new PosIntegrationError(`The ${label} endpoint did not return JSON.`, "INVALID_RESPONSE");
+      const bytes = await readBoundedResponse(response, label);
+      payload = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+      ) as unknown;
+    } catch (error) {
+      if (error instanceof PosIntegrationError) throw error;
+      throw new PosIntegrationError(`The ${label} endpoint did not return valid JSON.`, "INVALID_RESPONSE");
     }
     const data = this.settings.responseDataPath
       ? getNestedValue(payload, this.settings.responseDataPath)

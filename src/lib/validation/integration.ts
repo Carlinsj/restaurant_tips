@@ -3,11 +3,9 @@ import { z } from "zod";
 export const providerSchema = z.enum([
   "GENERIC_API",
   "CSV_IMPORT",
+  "CHEFOS",
+  "UNIVERSAL_WEBHOOK",
   "MANUAL",
-  "MOCK",
-  "PETPOOJA",
-  "RESTROWORKS",
-  "CUSTOM",
 ]);
 
 const credentialsSchema = z.record(z.string(), z.string().max(2_000)).default({});

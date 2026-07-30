@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma, type PosIntegration } from "@prisma/client";
 import { getPrisma } from "@/lib/database/prisma";
+import { checkRateLimit } from "@/lib/auth/rate-limit";
 import { writeAuditLog } from "@/server/audit";
 import { createPosAdapter } from "./registry";
 import { decryptCredentials } from "./security/encryption";
@@ -16,20 +17,6 @@ type WebhookResult = {
   status: number;
   message: string;
 };
-
-type WebhookLimit = { count: number; resetAt: number };
-const webhookLimits = new Map<string, WebhookLimit>();
-
-function webhookAllowed(key: string): boolean {
-  const now = Date.now();
-  const current = webhookLimits.get(key);
-  if (!current || current.resetAt <= now) {
-    webhookLimits.set(key, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  current.count += 1;
-  return current.count <= 120;
-}
 
 function jsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(redactSecrets(value))) as Prisma.InputJsonValue;
@@ -87,7 +74,12 @@ export async function handlePosWebhook(input: {
   headers: Headers;
   clientAddress: string;
 }): Promise<WebhookResult> {
-  if (!webhookAllowed(`${input.integrationId}:${input.clientAddress}`)) {
+  const webhookLimit = await checkRateLimit({
+    key: `webhook:${input.integrationId}:${input.clientAddress}`,
+    maxAttempts: 120,
+    windowMs: 60_000,
+  });
+  if (!webhookLimit.allowed) {
     return { accepted: false, duplicate: false, processed: 0, ignored: 0, status: 429, message: "Webhook rate limit exceeded." };
   }
   const prisma = getPrisma();
@@ -103,7 +95,10 @@ export async function handlePosWebhook(input: {
     integration.settingsJson,
     credentials,
   );
-  const signature = input.headers.get("x-pos-signature") ?? input.headers.get("x-signature");
+  const signature =
+    input.headers.get("x-tipsathi-signature") ??
+    input.headers.get("x-pos-signature") ??
+    input.headers.get("x-signature");
   const valid = await adapter.verifyWebhookSignature({
     rawBody: input.rawBody,
     headers: input.headers,

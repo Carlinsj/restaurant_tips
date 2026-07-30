@@ -1,5 +1,11 @@
 import { getSession } from "@/lib/auth/session";
 import { getPrisma } from "@/lib/database/prisma";
+import { isDatabaseReachable } from "@/lib/database/reachability";
+import { readDemoLedger } from "@/lib/demo-ledger";
+import {
+  applyDemoLedgerToEmployeeDashboard,
+  employeeDashboardFromDemoLedger,
+} from "@/lib/demo-ledger-data";
 import {
   buildPersonalShiftReports,
   demoEmployeeDashboardData,
@@ -52,26 +58,36 @@ function timeLabel(date: Date, timezone: string): string {
 
 export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData> {
   const session = await getSession();
-  if (!session || session.role !== "EMPLOYEE") {
-    return demoEmployeeDashboardData;
+  const ledger = await readDemoLedger();
+  if (!(await isDatabaseReachable())) {
+    return employeeDashboardFromDemoLedger(ledger);
   }
 
   try {
     const prisma = getPrisma();
     const employee = await prisma.employee.findFirst({
-      where: {
-        id: session.subjectId,
-        restaurantId: session.restaurantId,
-        isActive: true,
-      },
+      where:
+        session?.role === "EMPLOYEE"
+          ? {
+              id: session.subjectId,
+              restaurantId: session.restaurantId,
+              isActive: true,
+            }
+          : {
+              employeeCode: "W001",
+              restaurant: { code: "DEMO" },
+              isActive: true,
+            },
       select: {
         id: true,
+        restaurantId: true,
         name: true,
         employeeCode: true,
         jobType: true,
         restaurant: {
           select: {
             code: true,
+            currency: true,
             timezone: true,
           },
         },
@@ -85,7 +101,7 @@ export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData>
         prisma.shiftEmployee.findMany({
           where: {
             employeeId: employee.id,
-            shift: { restaurantId: session.restaurantId },
+            shift: { restaurantId: employee.restaurantId },
           },
           orderBy: { clockInAt: "desc" },
           take: 12,
@@ -106,7 +122,7 @@ export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData>
         prisma.tipAllocation.findMany({
           where: {
             employeeId: employee.id,
-            restaurantId: session.restaurantId,
+            restaurantId: employee.restaurantId,
           },
           orderBy: { createdAt: "desc" },
           take: 250,
@@ -140,7 +156,7 @@ export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData>
         prisma.payout.findMany({
           where: {
             employeeId: employee.id,
-            restaurantId: session.restaurantId,
+            restaurantId: employee.restaurantId,
           },
           orderBy: { updatedAt: "desc" },
           take: 12,
@@ -155,7 +171,7 @@ export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData>
             employeeId: employee.id,
             endedAt: null,
             shift: {
-              restaurantId: session.restaurantId,
+              restaurantId: employee.restaurantId,
               status: "OPEN",
             },
           },
@@ -175,7 +191,6 @@ export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData>
                     tips: {
                       where: { status: "CONFIRMED" },
                       orderBy: { confirmedAt: "desc" },
-                      take: 1,
                       select: {
                         allocations: {
                           where: { employeeId: employee.id },
@@ -224,74 +239,138 @@ export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData>
       payouts,
     });
 
-    if (shiftReports.every((report) => report.totalPaise === 0)) {
-      if (employee.restaurant.code === "DEMO") {
-        return {
-          ...demoEmployeeDashboardData,
-          employee: {
-            name: employee.name,
-            firstName: employee.name.split(/\s+/)[0] ?? employee.name,
-            initials: initialsFor(employee.name),
-            code: employee.employeeCode,
-            role: labelFor(employee.jobType),
-          },
-        };
-      }
-    }
-
     const currentShift =
       shiftReports.find((report) => report.status === "Open") ??
       shiftReports[0] ??
       null;
     const currentShiftId = currentShift?.id;
+    const assignedTables = assignmentRows.map((assignment) => {
+      const bill = assignment.table.bills[0];
+      const earnedPaise =
+        bill && bill.tips.length > 0
+          ? bill.tips.reduce(
+              (tipTotal, tip) =>
+                tipTotal +
+                tip.allocations.reduce(
+                  (allocationTotal, allocation) =>
+                    allocationTotal + allocation.amountPaise,
+                  0,
+                ),
+              0,
+            )
+          : null;
+
+      return {
+        id: assignment.id,
+        number: assignment.table.number,
+        status:
+          earnedPaise !== null && earnedPaise > 0
+            ? "Tip received"
+            : bill
+              ? "Bill ready"
+              : "Assigned",
+        billPaise: bill?.totalPaise ?? null,
+        earnedPaise,
+      };
+    });
+    const recentAllocations = allocations
+      .filter(
+        (allocation) =>
+          !currentShiftId || allocation.shiftId === currentShiftId,
+      )
+      .slice(0, 8)
+      .map((allocation) => ({
+        id: allocation.id,
+        tableNumber: allocation.tableNumber,
+        time: timeLabel(
+          new Date(allocation.createdAt),
+          employee.restaurant.timezone,
+        ),
+        source: labelFor(allocation.method),
+        amountPaise: allocation.amountPaise,
+        allocationLabel: allocationLabel(allocation.allocationType),
+      }));
+    const employeeIdentity = {
+      name: employee.name,
+      firstName: employee.name.split(/\s+/)[0] ?? employee.name,
+      initials: initialsFor(employee.name),
+      code: employee.employeeCode,
+      role: labelFor(employee.jobType),
+    };
+
+    if (
+      employee.restaurant.code === "DEMO" &&
+      employee.employeeCode === "W001"
+    ) {
+      const baselineCurrent = demoEmployeeDashboardData.currentShift;
+      if (!baselineCurrent) return demoEmployeeDashboardData;
+      const mergedCurrent = {
+        ...baselineCurrent,
+        id: currentShift?.id ?? baselineCurrent.id,
+        name: currentShift?.name ?? baselineCurrent.name,
+        date: currentShift?.date ?? baselineCurrent.date,
+        status: currentShift?.status ?? baselineCurrent.status,
+        payoutStatus:
+          currentShift?.payoutStatus ?? baselineCurrent.payoutStatus,
+        tipCount: baselineCurrent.tipCount + (currentShift?.tipCount ?? 0),
+        directPaise:
+          baselineCurrent.directPaise + (currentShift?.directPaise ?? 0),
+        poolPaise: baselineCurrent.poolPaise + (currentShift?.poolPaise ?? 0),
+        adjustmentsPaise:
+          baselineCurrent.adjustmentsPaise +
+          (currentShift?.adjustmentsPaise ?? 0),
+        totalPaise:
+          baselineCurrent.totalPaise + (currentShift?.totalPaise ?? 0),
+        minutesWorked:
+          currentShift?.minutesWorked || baselineCurrent.minutesWorked,
+      };
+      const mergedTables = demoEmployeeDashboardData.assignedTables.map(
+        (table) => {
+          const recordedTable = assignedTables.find(
+            (candidate) => candidate.number === table.number,
+          );
+          return recordedTable ? { ...table, ...recordedTable } : { ...table };
+        },
+      );
+      for (const table of assignedTables) {
+        if (!mergedTables.some((candidate) => candidate.number === table.number)) {
+          mergedTables.push(table);
+        }
+      }
+      const reports = [
+        mergedCurrent,
+        ...demoEmployeeDashboardData.shiftReports
+          .filter((report) => report.id !== baselineCurrent.id)
+          .map((report) => ({ ...report })),
+      ];
+
+      return applyDemoLedgerToEmployeeDashboard({
+        currency: employee.restaurant.currency,
+        employee: employeeIdentity,
+        currentShift: mergedCurrent,
+        assignedTables: mergedTables,
+        recentAllocations: [
+          ...recentAllocations,
+          ...demoEmployeeDashboardData.recentAllocations.map((allocation) => ({
+            ...allocation,
+          })),
+        ].slice(0, 8),
+        shiftReports: reports,
+        summary: summarizeShiftReports(reports),
+      }, ledger);
+    }
 
     return {
-      employee: {
-        name: employee.name,
-        firstName: employee.name.split(/\s+/)[0] ?? employee.name,
-        initials: initialsFor(employee.name),
-        code: employee.employeeCode,
-        role: labelFor(employee.jobType),
-      },
+      currency: employee.restaurant.currency,
+      employee: employeeIdentity,
       currentShift,
-      assignedTables: assignmentRows.map((assignment) => {
-        const bill = assignment.table.bills[0];
-        const earnedPaise =
-          bill?.tips[0]?.allocations.reduce(
-            (total, allocation) => total + allocation.amountPaise,
-            0,
-          ) ?? null;
-
-        return {
-          id: assignment.id,
-          number: assignment.table.number,
-          status: earnedPaise ? "Tip received" : bill ? "Open bill" : "Assigned",
-          billPaise: bill?.totalPaise ?? null,
-          earnedPaise,
-        };
-      }),
-      recentAllocations: allocations
-        .filter(
-          (allocation) =>
-            !currentShiftId || allocation.shiftId === currentShiftId,
-        )
-        .slice(0, 8)
-        .map((allocation) => ({
-          id: allocation.id,
-          tableNumber: allocation.tableNumber,
-          time: timeLabel(
-            new Date(allocation.createdAt),
-            employee.restaurant.timezone,
-          ),
-          source: labelFor(allocation.method),
-          amountPaise: allocation.amountPaise,
-          allocationLabel: allocationLabel(allocation.allocationType),
-        })),
+      assignedTables,
+      recentAllocations,
       shiftReports,
       summary: summarizeShiftReports(shiftReports),
     };
   } catch (error) {
     console.error("Unable to load the employee dashboard.", error);
-    return demoEmployeeDashboardData;
+    return employeeDashboardFromDemoLedger(ledger);
   }
 }

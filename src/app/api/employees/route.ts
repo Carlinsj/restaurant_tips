@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireManagerSession } from "@/lib/auth/authorize";
 import { hashCredential } from "@/lib/auth/password";
 import { getPrisma } from "@/lib/database/prisma";
+import { parseJsonRequest } from "@/lib/http/request";
 import { employeeCreateSchema } from "@/lib/validation/management";
 import { writeAuditLog } from "@/server/audit";
 
@@ -33,23 +34,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Manager access required." }, { status: 401 });
   }
 
-  const parsed = employeeCreateSchema.safeParse(await request.json());
+  const parsed = await parseJsonRequest(request, employeeCreateSchema);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Check the employee name, code, role, and 4–6 digit PIN." },
-      { status: 400 },
+      { status: parsed.status },
     );
   }
 
   const prisma = getPrisma();
   try {
+    const pinHash = await hashCredential(parsed.data.pin);
     const employee = await prisma.$transaction(async (transaction) => {
       const created = await transaction.employee.create({
         data: {
           restaurantId: session.restaurantId,
           name: parsed.data.name,
           employeeCode: parsed.data.employeeCode,
-          pinHash: await hashCredential(parsed.data.pin),
+          pinHash,
           jobType: parsed.data.jobType,
         },
         select: {

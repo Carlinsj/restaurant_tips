@@ -3,14 +3,19 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { demoEmployees } from "@/lib/demo-data";
 import { formatInr } from "@/lib/currency";
+import { getManagerDashboardData } from "@/server/manager-dashboard";
 
-export default function EmployeesPage() {
+export default async function EmployeesPage() {
+  const { employees } = await getManagerDashboardData();
+  const currentEarnings = employees.reduce(
+    (total, employee) => total + employee.tipsPaise,
+    0,
+  );
   const metrics = [
-    { label: "Active employees", value: "8", copy: "All roles", icon: Users },
-    { label: "On shift", value: "8", copy: "7 floor · 1 break", icon: UserCheck },
-    { label: "Current earnings", value: "₹10,590", copy: "Before finalization", icon: WalletCards },
+    { label: "Active employees", value: String(employees.length), copy: "All roles", icon: Users },
+    { label: "On shift", value: String(employees.length), copy: "7 floor · 1 break", icon: UserCheck },
+    { label: "Current earnings", value: formatInr(currentEarnings), copy: "Before finalization", icon: WalletCards },
   ];
 
   return (
@@ -57,7 +62,7 @@ export default function EmployeesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {demoEmployees.map((employee) => (
+                {employees.map((employee) => (
                   <TableRow key={employee.code}>
                     <TableCell className="ps-5">
                       <div className="flex items-center gap-3">

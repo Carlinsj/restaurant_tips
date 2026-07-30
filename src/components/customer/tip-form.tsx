@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Check,
   ChevronRight,
-  IndianRupee,
+  CircleDollarSign,
   LoaderCircle,
   LockKeyhole,
   MessageSquareText,
@@ -20,7 +20,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { calculatePercentageTip, formatInr, parseRupeesToPaise } from "@/lib/currency";
+import {
+  calculatePercentageTip,
+  formatCurrency,
+  parseCurrencyToMinor,
+} from "@/lib/currency";
 import { cn } from "@/lib/utils";
 
 export type PublicBillDetails = {
@@ -56,7 +60,9 @@ export function TipForm({
     if (selection === "none") return 0;
     if (selection === "custom") {
       try {
-        return customAmount ? parseRupeesToPaise(customAmount) : 0;
+        return customAmount
+          ? parseCurrencyToMinor(customAmount, bill.currency)
+          : 0;
       } catch {
         return 0;
       }
@@ -77,12 +83,6 @@ export function TipForm({
     const percentage = percentages.some((value) => String(value) === selection)
       ? Number(selection)
       : null;
-
-    if (bill.isDemo) {
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
-      router.push(`/tip/${publicBillToken}/success?amount=${tipPaise}`);
-      return;
-    }
 
     try {
       const response = await fetch(`/api/public/tips/${publicBillToken}`, {
@@ -115,7 +115,7 @@ export function TipForm({
           <Brand />
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
             <LockKeyhole className="size-3" aria-hidden="true" />
-            {bill.isDemo ? "Practice bill · no data saved" : "Secure bill"}
+            {bill.isDemo ? "Practice mode" : "Secure bill"}
           </span>
         </div>
       </header>
@@ -136,7 +136,7 @@ export function TipForm({
               <div>
                 <p className="text-xs text-white/50">Bill total</p>
                 <p className="font-tabular mt-1 text-3xl font-semibold tracking-[-0.045em]">
-                  {formatInr(bill.totalPaise)}
+                  {formatCurrency(bill.totalPaise, bill.currency)}
                 </p>
               </div>
               <div className="text-end">
@@ -179,7 +179,7 @@ export function TipForm({
                   >
                     <span className="text-base font-semibold">{percentage}%</span>
                     <span className="font-tabular mt-1 block text-[11px] text-muted-foreground">
-                      {formatInr(amount)}
+                      {formatCurrency(amount, bill.currency)}
                     </span>
                     {selected && (
                       <span className="absolute end-2 top-2 flex size-4 items-center justify-center rounded-full bg-primary text-white">
@@ -226,7 +226,7 @@ export function TipForm({
               <div className="mt-4 grid gap-2">
                 <Label htmlFor="custom-tip">Custom tip</Label>
                 <div className="relative">
-                  <IndianRupee className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <CircleDollarSign className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                   <Input
                     id="custom-tip"
                     value={customAmount}
@@ -262,15 +262,15 @@ export function TipForm({
             <div className="mt-6 rounded-xl border border-border bg-muted/30 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Bill</span>
-                <span className="font-tabular text-xs">{formatInr(bill.totalPaise)}</span>
+                <span className="font-tabular text-xs">{formatCurrency(bill.totalPaise, bill.currency)}</span>
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Tip</span>
-                <span className="font-tabular text-xs">{formatInr(tipPaise)}</span>
+                <span className="font-tabular text-xs">{formatCurrency(tipPaise, bill.currency)}</span>
               </div>
               <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
                 <strong className="text-sm">Total</strong>
-                <strong className="font-tabular text-lg">{formatInr(bill.totalPaise + tipPaise)}</strong>
+                <strong className="font-tabular text-lg">{formatCurrency(bill.totalPaise + tipPaise, bill.currency)}</strong>
               </div>
             </div>
 
@@ -278,17 +278,17 @@ export function TipForm({
               {submitting ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <ReceiptText className="size-4" aria-hidden="true" />}
               {bill.isDemo
                 ? selection === "none"
-                  ? "Finish without a tip"
-                  : `Continue with ${formatInr(tipPaise)}`
+                  ? "Apply no-tip practice choice"
+                  : `Apply ${formatCurrency(tipPaise, bill.currency)} practice tip`
                 : selection === "none"
                   ? "Confirm no tip"
-                  : `Confirm ${formatInr(tipPaise)} tip`}
+                  : `Confirm ${formatCurrency(tipPaise, bill.currency)} tip`}
               <ChevronRight className="ms-auto size-4" aria-hidden="true" />
             </Button>
             <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[10px] text-muted-foreground">
               <ShieldCheck className="size-3" aria-hidden="true" />
               {bill.isDemo
-                ? "Practice mode · no payment or saved data"
+                ? "Practice only · no payment charged · updates demo manager and staff views."
                 : "TipSathi records your choice; the restaurant’s payment system handles payment."}
             </p>
           </form>

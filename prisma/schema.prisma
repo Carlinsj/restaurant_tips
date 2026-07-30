@@ -80,6 +80,8 @@ enum PayoutStatus {
 enum PosProvider {
   GENERIC_API
   CSV_IMPORT
+  CHEFOS
+  UNIVERSAL_WEBHOOK
   MANUAL
   MOCK
   PETPOOJA
@@ -283,7 +285,7 @@ model Bill {
   tableId          String
   table            RestaurantTable       @relation(fields: [tableId], references: [id])
   billNumber       String
-  publicToken      String                @unique @default(cuid())
+  publicToken      String                @unique @default(cuid(2))
   subtotalPaise    Int
   taxPaise         Int                   @default(0)
   totalPaise       Int
@@ -310,7 +312,7 @@ model Tip {
   method              TipMethod
   status              TipStatus       @default(PENDING)
   customerNote        String?
-  idempotencyKey      String?         @unique
+  idempotencyKey      String?
   sourceIntegrationId String?
   sourceIntegration   PosIntegration? @relation(fields: [sourceIntegrationId], references: [id])
   externalReference   String?
@@ -323,8 +325,18 @@ model Tip {
   adjustments         Adjustment[]
 
   @@unique([sourceIntegrationId, externalReference])
+  @@unique([billId, idempotencyKey])
   @@index([restaurantId, status, createdAt])
   @@index([billId, status])
+}
+
+model RateLimitBucket {
+  keyHash   String   @id @db.VarChar(64)
+  attempts  Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
 
 model TipRule {

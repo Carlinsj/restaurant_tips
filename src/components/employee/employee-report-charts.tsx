@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatInr } from "@/lib/currency";
+import { formatCurrency } from "@/lib/currency";
 import type { PersonalShiftReport } from "@/lib/employee-reports";
 
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-IN", {
@@ -19,7 +19,13 @@ function totalFor(
   return reports.reduce((sum, report) => sum + report[field], 0);
 }
 
-function EarningsTrend({ reports }: { reports: PersonalShiftReport[] }) {
+function EarningsTrend({
+  reports,
+  currency,
+}: {
+  reports: PersonalShiftReport[];
+  currency: string;
+}) {
   const chronologicalReports = [...reports].reverse().slice(-8);
   const maximum = Math.max(
     1,
@@ -68,12 +74,12 @@ function EarningsTrend({ reports }: { reports: PersonalShiftReport[] }) {
                     className="flex h-full min-w-0 flex-1 flex-col items-center justify-end"
                   >
                     <span className="font-tabular mb-2 hidden text-[9px] font-medium text-muted-foreground sm:block">
-                      {formatInr(report.totalPaise)}
+                      {formatCurrency(report.totalPaise, currency)}
                     </span>
                     <div
                       className="flex w-full max-w-14 flex-col-reverse overflow-hidden rounded-t-md bg-amber-300"
                       style={{ height: `${totalHeight}%` }}
-                      title={`${formatShortDate(report.date)}: ${formatInr(report.totalPaise)}`}
+                      title={`${formatShortDate(report.date)}: ${formatCurrency(report.totalPaise, currency)}`}
                     >
                       <span
                         className="block w-full bg-primary"
@@ -111,7 +117,13 @@ function EarningsTrend({ reports }: { reports: PersonalShiftReport[] }) {
   );
 }
 
-function TipMix({ reports }: { reports: PersonalShiftReport[] }) {
+function TipMix({
+  reports,
+  currency,
+}: {
+  reports: PersonalShiftReport[];
+  currency: string;
+}) {
   const directPaise = totalFor(reports, "directPaise");
   const poolPaise = totalFor(reports, "poolPaise");
   const combinedPaise = directPaise + poolPaise;
@@ -159,7 +171,7 @@ function TipMix({ reports }: { reports: PersonalShiftReport[] }) {
                 Direct
               </dt>
               <dd className="font-tabular text-xs font-semibold">
-                {formatInr(directPaise)}
+                {formatCurrency(directPaise, currency)}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-4 rounded-lg bg-muted/45 px-3 py-2.5">
@@ -171,7 +183,7 @@ function TipMix({ reports }: { reports: PersonalShiftReport[] }) {
                 Pool
               </dt>
               <dd className="font-tabular text-xs font-semibold">
-                {formatInr(poolPaise)}
+                {formatCurrency(poolPaise, currency)}
               </dd>
             </div>
           </dl>
@@ -181,7 +193,13 @@ function TipMix({ reports }: { reports: PersonalShiftReport[] }) {
   );
 }
 
-function EarningsPace({ reports }: { reports: PersonalShiftReport[] }) {
+function EarningsPace({
+  reports,
+  currency,
+}: {
+  reports: PersonalShiftReport[];
+  currency: string;
+}) {
   const totalPaise = totalFor(reports, "totalPaise");
   const totalMinutes = totalFor(reports, "minutesWorked");
   const totalTipCount = reports.reduce(
@@ -205,7 +223,7 @@ function EarningsPace({ reports }: { reports: PersonalShiftReport[] }) {
         <div className="rounded-lg bg-muted/45 p-3">
           <p className="text-[10px] text-muted-foreground">Tips per hour</p>
           <p className="font-tabular mt-1 text-lg font-semibold">
-            {formatInr(hourlyPaise)}
+            {formatCurrency(hourlyPaise, currency)}
           </p>
         </div>
         <div className="rounded-lg bg-muted/45 p-3">
@@ -227,18 +245,20 @@ function EarningsPace({ reports }: { reports: PersonalShiftReport[] }) {
 
 export function EmployeeReportCharts({
   reports,
+  currency,
 }: {
   reports: PersonalShiftReport[];
+  currency: string;
 }) {
   return (
     <section
       aria-label="Personal tip charts"
       className="grid gap-5 xl:grid-cols-3"
     >
-      <EarningsTrend reports={reports} />
+      <EarningsTrend reports={reports} currency={currency} />
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
-        <TipMix reports={reports} />
-        <EarningsPace reports={reports} />
+        <TipMix reports={reports} currency={currency} />
+        <EarningsPace reports={reports} currency={currency} />
       </div>
     </section>
   );
