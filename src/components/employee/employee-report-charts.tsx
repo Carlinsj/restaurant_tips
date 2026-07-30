@@ -14,7 +14,7 @@ function formatShortDate(date: string): string {
 
 function totalFor(
   reports: PersonalShiftReport[],
-  field: "directPaise" | "poolPaise" | "totalPaise" | "minutesWorked",
+  field: "directPaise" | "totalPaise" | "minutesWorked",
 ): number {
   return reports.reduce((sum, report) => sum + report[field], 0);
 }
@@ -57,17 +57,6 @@ function EarningsTrend({
                   8,
                   Math.round((report.totalPaise / maximum) * 82),
                 );
-                const directHeight =
-                  report.totalPaise > 0
-                    ? Math.min(
-                        100,
-                        Math.max(
-                          0,
-                          (report.directPaise / report.totalPaise) * 100,
-                        ),
-                      )
-                    : 0;
-
                 return (
                   <div
                     key={report.id}
@@ -77,16 +66,10 @@ function EarningsTrend({
                       {formatCurrency(report.totalPaise, currency)}
                     </span>
                     <div
-                      className="flex w-full max-w-14 flex-col-reverse overflow-hidden rounded-t-md bg-amber-300"
+                      className="w-full max-w-14 rounded-t-md bg-primary"
                       style={{ height: `${totalHeight}%` }}
                       title={`${formatShortDate(report.date)}: ${formatCurrency(report.totalPaise, currency)}`}
-                    >
-                      <span
-                        className="block w-full bg-primary"
-                        style={{ height: `${directHeight}%` }}
-                        aria-hidden="true"
-                      />
-                    </div>
+                    />
                     <span className="mt-2 text-[9px] text-muted-foreground">
                       {formatShortDate(report.date)}
                     </span>
@@ -102,92 +85,9 @@ function EarningsTrend({
                 />
                 Direct tips
               </span>
-              <span className="inline-flex items-center gap-2">
-                <span
-                  className="size-2 rounded-full bg-amber-300"
-                  aria-hidden="true"
-                />
-                Pooled tips
-              </span>
             </div>
           </>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function TipMix({
-  reports,
-  currency,
-}: {
-  reports: PersonalShiftReport[];
-  currency: string;
-}) {
-  const directPaise = totalFor(reports, "directPaise");
-  const poolPaise = totalFor(reports, "poolPaise");
-  const combinedPaise = directPaise + poolPaise;
-  const directPercent =
-    combinedPaise > 0
-      ? Math.min(
-          100,
-          Math.max(0, Math.round((directPaise / combinedPaise) * 100)),
-        )
-      : 0;
-  const poolPercent = combinedPaise > 0 ? 100 - directPercent : 0;
-
-  return (
-    <Card className="gap-0 py-0">
-      <CardHeader className="border-b border-border px-5 py-4">
-        <CardTitle className="text-sm">How your tips were shared</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Direct earnings compared with the staff pool.
-        </p>
-      </CardHeader>
-      <CardContent className="p-5">
-        <div className="flex flex-col items-center gap-6 sm:flex-row xl:flex-col">
-          <div
-            className="relative size-40 shrink-0 rounded-full"
-            style={{
-              background: `conic-gradient(var(--primary) 0 ${directPercent}%, #e5bc54 ${directPercent}% 100%)`,
-            }}
-            role="img"
-            aria-label={`${directPercent}% direct tips and ${poolPercent}% pooled tips`}
-          >
-            <div className="absolute inset-5 flex flex-col items-center justify-center rounded-full bg-card">
-              <strong className="font-tabular text-2xl">{directPercent}%</strong>
-              <span className="mt-1 text-[10px] text-muted-foreground">
-                direct
-              </span>
-            </div>
-          </div>
-          <dl className="w-full space-y-3">
-            <div className="flex items-center justify-between gap-4 rounded-lg bg-muted/45 px-3 py-2.5">
-              <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span
-                  className="size-2 rounded-full bg-primary"
-                  aria-hidden="true"
-                />
-                Direct
-              </dt>
-              <dd className="font-tabular text-xs font-semibold">
-                {formatCurrency(directPaise, currency)}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg bg-muted/45 px-3 py-2.5">
-              <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span
-                  className="size-2 rounded-full bg-amber-300"
-                  aria-hidden="true"
-                />
-                Pool
-              </dt>
-              <dd className="font-tabular text-xs font-semibold">
-                {formatCurrency(poolPaise, currency)}
-              </dd>
-            </div>
-          </dl>
-        </div>
       </CardContent>
     </Card>
   );
@@ -256,8 +156,7 @@ export function EmployeeReportCharts({
       className="grid gap-5 xl:grid-cols-3"
     >
       <EarningsTrend reports={reports} currency={currency} />
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
-        <TipMix reports={reports} currency={currency} />
+      <div>
         <EarningsPace reports={reports} currency={currency} />
       </div>
     </section>

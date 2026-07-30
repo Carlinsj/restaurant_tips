@@ -20,7 +20,7 @@ const baseAllocation: EmployeeAllocationRecord = {
 };
 
 describe("employee personal reports", () => {
-  it("separates direct, pooled, and adjustment earnings by shift", () => {
+  it("reports all tip shares as direct while preserving legacy earnings", () => {
     const reports = buildPersonalShiftReports({
       allocations: [
         baseAllocation,
@@ -68,8 +68,7 @@ describe("employee personal reports", () => {
 
     expect(reports).toHaveLength(1);
     expect(reports[0]).toMatchObject({
-      directPaise: 10_000,
-      poolPaise: 4_000,
+      directPaise: 14_000,
       adjustmentsPaise: -500,
       totalPaise: 13_500,
       tipCount: 3,

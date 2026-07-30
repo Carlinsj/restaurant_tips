@@ -252,9 +252,11 @@ async function main() {
     strategy: DistributionStrategy.WEIGHTED,
     isDefault: true,
     configuration: {
-      version: 1,
+      version: 2,
       formula: "inverse_active_table_count",
-      description: "Eligible staff weight = 1 / distinct active tables",
+      remainderTieBreaker: "hashed_allocation_key",
+      description:
+        "Eligible staff weight = 1 / distinct active tables; exact remainder ties rotate deterministically by allocation key",
     },
   };
   if (existingRule) {

@@ -175,6 +175,7 @@ export async function POST(
             employeeId: assignment.employeeId,
             tableId: assignment.tableId,
           })),
+          { allocationKey: parsed.data.idempotencyKey },
         )
       : [];
 
@@ -204,11 +205,13 @@ export async function POST(
                     amountPaise: allocation.amountPaise,
                     weight: allocation.shareBasisPoints,
                     calculationDetails: {
-                      strategy: "INVERSE_TABLE_LOAD_V1",
+                      strategy: "INVERSE_TABLE_LOAD_V2",
                       source: "INTERACTIVE_DEMO",
                       activeTableCount: allocation.activeTableCount,
                       shareBasisPoints: allocation.shareBasisPoints,
                       remainderPaise: allocation.remainderPaise,
+                      remainderTieBreaker: allocation.remainderTieBreaker,
+                      remainderSeed: allocation.remainderSeed,
                     },
                   })),
                 }

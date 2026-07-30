@@ -111,7 +111,7 @@ describe("signed offline demo ledger", () => {
 
     const employee = employeeDashboardFromDemoLedger(ledger);
     expect(employee.currentShift?.totalPaise).toBe(188_000);
-    expect(employee.currentShift?.directPaise).toBe(132_800);
+    expect(employee.currentShift?.directPaise).toBe(188_000);
     expect(
       employee.assignedTables.find((table) => table.number === 6),
     ).toMatchObject({ status: "Tip received", earnedPaise: 18_000 });

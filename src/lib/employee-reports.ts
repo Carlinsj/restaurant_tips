@@ -43,7 +43,6 @@ export type PersonalShiftReport = {
   payoutStatus: string;
   tipCount: number;
   directPaise: number;
-  poolPaise: number;
   adjustmentsPaise: number;
   totalPaise: number;
   minutesWorked: number;
@@ -125,7 +124,6 @@ export function buildPersonalShiftReports({
       payoutStatus: resolvePayoutStatus(shift.shiftStatus, payout),
       tipCount: 0,
       directPaise: 0,
-      poolPaise: 0,
       adjustmentsPaise: 0,
       totalPaise: 0,
       minutesWorked: shift.minutesWorked,
@@ -145,7 +143,6 @@ export function buildPersonalShiftReports({
         payoutStatus: resolvePayoutStatus(allocation.shiftStatus, payout),
         tipCount: 0,
         directPaise: 0,
-        poolPaise: 0,
         adjustmentsPaise: 0,
         totalPaise: 0,
         minutesWorked: 0,
@@ -159,11 +156,10 @@ export function buildPersonalShiftReports({
 
     if (
       allocation.allocationType === "DIRECT" ||
-      allocation.allocationType === "TABLE_SPLIT"
+      allocation.allocationType === "TABLE_SPLIT" ||
+      allocation.allocationType === "POOL"
     ) {
       report.directPaise += allocation.amountPaise;
-    } else if (allocation.allocationType === "POOL") {
-      report.poolPaise += allocation.amountPaise;
     } else {
       report.adjustmentsPaise += allocation.amountPaise;
     }
@@ -183,7 +179,6 @@ export function buildPersonalShiftReports({
       payoutStatus: report.payoutStatus,
       tipCount: report.tipCount,
       directPaise: report.directPaise,
-      poolPaise: report.poolPaise,
       adjustmentsPaise: report.adjustmentsPaise,
       totalPaise: report.totalPaise,
       minutesWorked: report.minutesWorked,
@@ -223,8 +218,7 @@ const demoShiftReports: PersonalShiftReport[] = [
     status: "Open",
     payoutStatus: "In progress",
     tipCount: 7,
-    directPaise: 114_800,
-    poolPaise: 55_200,
+    directPaise: 170_000,
     adjustmentsPaise: 0,
     totalPaise: 170_000,
     minutesWorked: 240,
@@ -236,8 +230,7 @@ const demoShiftReports: PersonalShiftReport[] = [
     status: "Paid",
     payoutStatus: "Paid",
     tipCount: 11,
-    directPaise: 151_200,
-    poolPaise: 64_800,
+    directPaise: 216_000,
     adjustmentsPaise: 0,
     totalPaise: 216_000,
     minutesWorked: 390,
@@ -249,8 +242,7 @@ const demoShiftReports: PersonalShiftReport[] = [
     status: "Paid",
     payoutStatus: "Paid",
     tipCount: 7,
-    directPaise: 91_000,
-    poolPaise: 39_000,
+    directPaise: 130_000,
     adjustmentsPaise: 0,
     totalPaise: 130_000,
     minutesWorked: 330,
@@ -262,8 +254,7 @@ const demoShiftReports: PersonalShiftReport[] = [
     status: "Closed",
     payoutStatus: "Approved",
     tipCount: 9,
-    directPaise: 126_700,
-    poolPaise: 54_300,
+    directPaise: 181_000,
     adjustmentsPaise: 0,
     totalPaise: 181_000,
     minutesWorked: 375,

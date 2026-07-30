@@ -1,15 +1,21 @@
 import { assertPaise } from "@/lib/currency";
 import type {
   ActiveTableAssignment,
+  TableLoadAllocationOptions,
   TableLoadAllocationResult,
 } from "./types";
 
 const SHARE_BASIS_POINTS = 10_000;
+const FNV_OFFSET_BASIS_64 = 0xcbf29ce484222325n;
+const FNV_PRIME_64 = 0x100000001b3n;
+const UINT64_MASK = 0xffffffffffffffffn;
+const UTF8_ENCODER = new TextEncoder();
 
 type WeightedRecipient = {
   employeeId: string;
   activeTableCount: number;
   inverseLoadWeight: bigint;
+  remainderPriority: bigint | null;
 };
 
 type ApportionedAmount = {
@@ -17,6 +23,40 @@ type ApportionedAmount = {
   amount: number;
   remainderUnit: number;
 };
+
+function greatestCommonDivisor(left: bigint, right: bigint): bigint {
+  let a = left;
+  let b = right;
+  while (b !== 0n) {
+    const remainder = a % b;
+    a = b;
+    b = remainder;
+  }
+  return a;
+}
+
+function leastCommonMultiple(left: bigint, right: bigint): bigint {
+  return (left / greatestCommonDivisor(left, right)) * right;
+}
+
+function stableHash64(value: string): bigint {
+  let hash = FNV_OFFSET_BASIS_64;
+  for (const byte of UTF8_ENCODER.encode(value)) {
+    hash ^= BigInt(byte);
+    hash = (hash * FNV_PRIME_64) & UINT64_MASK;
+  }
+  return hash;
+}
+
+function remainderSeedFor(allocationKey: string | undefined): string | null {
+  if (allocationKey === undefined) return null;
+  if (!allocationKey.trim()) {
+    throw new Error("The allocation key cannot be empty.");
+  }
+  return stableHash64(`tipsathi:table-load:v2:${allocationKey}`)
+    .toString(16)
+    .padStart(16, "0");
+}
 
 function apportionExactly(
   total: number,
@@ -32,6 +72,7 @@ function apportionExactly(
       employeeId: recipient.employeeId,
       amount: Number(numerator / totalWeight),
       fractionalRemainder: numerator % totalWeight,
+      remainderPriority: recipient.remainderPriority,
     };
   });
   const allocated = provisional.reduce(
@@ -40,6 +81,13 @@ function apportionExactly(
   );
   const remainderOrder = [...provisional].sort((left, right) => {
     if (left.fractionalRemainder === right.fractionalRemainder) {
+      if (
+        left.remainderPriority !== null &&
+        right.remainderPriority !== null &&
+        left.remainderPriority !== right.remainderPriority
+      ) {
+        return left.remainderPriority < right.remainderPriority ? -1 : 1;
+      }
       return left.employeeId.localeCompare(right.employeeId);
     }
     return left.fractionalRemainder > right.fractionalRemainder ? -1 : 1;
@@ -68,6 +116,7 @@ export function calculateTableLoadAllocation(
   amountPaise: number,
   tippedTableId: string,
   activeAssignments: ActiveTableAssignment[],
+  options: TableLoadAllocationOptions = {},
 ): TableLoadAllocationResult[] {
   assertPaise(amountPaise);
   if (amountPaise < 0) {
@@ -104,17 +153,23 @@ export function calculateTableLoadAllocation(
     return { employeeId, activeTableCount: count };
   });
 
-  // The product creates integer equivalents of 1/tableCount without using
-  // floating-point arithmetic: product/count is proportional to 1/count.
-  const commonProduct = tableCounts.reduce(
-    (product, recipient) => product * BigInt(recipient.activeTableCount),
+  // The least common multiple creates exact integer equivalents of
+  // 1/tableCount while growing no larger than necessary.
+  const commonDenominator = tableCounts.reduce(
+    (multiple, recipient) =>
+      leastCommonMultiple(multiple, BigInt(recipient.activeTableCount)),
     1n,
   );
+  const remainderSeed = remainderSeedFor(options.allocationKey);
   const weightedRecipients: WeightedRecipient[] = tableCounts.map(
     (recipient) => ({
       ...recipient,
       inverseLoadWeight:
-        commonProduct / BigInt(recipient.activeTableCount),
+        commonDenominator / BigInt(recipient.activeTableCount),
+      remainderPriority:
+        remainderSeed === null
+          ? null
+          : stableHash64(`${remainderSeed}:${recipient.employeeId}`),
     }),
   );
   const amounts = apportionExactly(amountPaise, weightedRecipients);
@@ -122,11 +177,12 @@ export function calculateTableLoadAllocation(
   const sharesByEmployee = new Map(
     shares.map((share) => [share.employeeId, share.amount]),
   );
+  const recipientsByEmployee = new Map(
+    weightedRecipients.map((recipient) => [recipient.employeeId, recipient]),
+  );
 
-  const results = amounts.map((allocation) => {
-    const recipient = weightedRecipients.find(
-      (item) => item.employeeId === allocation.employeeId,
-    );
+  const results: TableLoadAllocationResult[] = amounts.map((allocation) => {
+    const recipient = recipientsByEmployee.get(allocation.employeeId);
     if (!recipient) {
       throw new Error("Allocation invariant failed: recipient is missing.");
     }
@@ -138,6 +194,9 @@ export function calculateTableLoadAllocation(
       shareBasisPoints: sharesByEmployee.get(allocation.employeeId) ?? 0,
       totalShareBasisPoints: SHARE_BASIS_POINTS as 10_000,
       remainderPaise: allocation.remainderUnit,
+      remainderTieBreaker:
+        remainderSeed === null ? "EMPLOYEE_ID" : "HASHED_ALLOCATION_KEY",
+      remainderSeed,
     };
   });
 

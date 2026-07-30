@@ -57,9 +57,6 @@ enum DistributionStrategy {
   DIRECT
   WEIGHTED
   EQUAL
-  HOURS_POOL
-  POINTS_POOL
-  HYBRID
 }
 
 enum AllocationType {
@@ -273,6 +270,7 @@ model TableAssignment {
   updatedAt      DateTime        @updatedAt
 
   @@index([shiftId, tableId, endedAt])
+  @@index([shiftId, endedAt])
   @@index([employeeId, shiftId])
 }
 
@@ -347,7 +345,6 @@ model TipRule {
   strategy         DistributionStrategy
   isDefault        Boolean              @default(false)
   directPercentage Int?
-  poolPercentage   Int?
   configuration    Json
   isActive         Boolean              @default(true)
   createdAt        DateTime             @default(now())

@@ -92,7 +92,6 @@ export function applyDemoLedgerToEmployeeDashboard(
   if (currentReport) {
     currentReport.tipCount = data.currentShift.tipCount;
     currentReport.directPaise = data.currentShift.directPaise;
-    currentReport.poolPaise = data.currentShift.poolPaise;
     currentReport.adjustmentsPaise = data.currentShift.adjustmentsPaise;
     currentReport.totalPaise = data.currentShift.totalPaise;
   }

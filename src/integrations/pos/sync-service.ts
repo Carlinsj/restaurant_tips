@@ -287,6 +287,7 @@ async function importConfirmedTip(
     external.tipPaise,
     localBill.tableId,
     assignments,
+    { allocationKey: `${integration.id}:${externalReference}` },
   );
   const tip = await transaction.tip.create({
     data: {
@@ -308,12 +309,14 @@ async function importConfirmedTip(
           amountPaise: allocation.amountPaise,
           weight: allocation.shareBasisPoints,
           calculationDetails: {
-            strategy: "INVERSE_TABLE_LOAD_V1",
+            strategy: "INVERSE_TABLE_LOAD_V2",
             source: "POS_IMPORT",
             externalReference,
             activeTableCount: allocation.activeTableCount,
             shareBasisPoints: allocation.shareBasisPoints,
             remainderPaise: allocation.remainderPaise,
+            remainderTieBreaker: allocation.remainderTieBreaker,
+            remainderSeed: allocation.remainderSeed,
           },
         })),
       },

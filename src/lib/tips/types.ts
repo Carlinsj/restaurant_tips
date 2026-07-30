@@ -1,7 +1,6 @@
 export type AllocationKind =
   | "DIRECT"
   | "TABLE_SPLIT"
-  | "POOL"
   | "REVERSAL";
 
 export type ShareInput = {
@@ -23,6 +22,10 @@ export type ActiveTableAssignment = {
   tableId: string;
 };
 
+export type TableLoadAllocationOptions = {
+  allocationKey?: string;
+};
+
 export type TableLoadAllocationResult = {
   employeeId: string;
   amountPaise: number;
@@ -31,12 +34,6 @@ export type TableLoadAllocationResult = {
   shareBasisPoints: number;
   totalShareBasisPoints: 10_000;
   remainderPaise: number;
-};
-
-export type HybridInput = {
-  amountPaise: number;
-  directPercentage: number;
-  poolPercentage: number;
-  directRecipients: ShareInput[];
-  poolRecipients: ShareInput[];
+  remainderTieBreaker: "HASHED_ALLOCATION_KEY" | "EMPLOYEE_ID";
+  remainderSeed: string | null;
 };

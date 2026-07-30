@@ -24,7 +24,7 @@ const eventSchema = z.object({
 
 const ledgerSchema = z
   .object({
-    version: z.literal(2),
+    version: z.literal(3),
     totalPaise: z.number().int().min(0).max(4_000_000),
     arjunPaise: z.number().int().min(0).max(4_000_000),
     priyaPaise: z.number().int().min(0).max(4_000_000),
@@ -73,7 +73,7 @@ function idempotencyHash(idempotencyKey: string): string {
 
 export function createEmptyDemoLedger(): DemoLedger {
   return {
-    version: 2,
+    version: 3,
     totalPaise: 0,
     arjunPaise: 0,
     priyaPaise: 0,
@@ -111,6 +111,7 @@ export function appendDemoTip(
             { employeeId: "R001", tableId: "table-3" },
             { employeeId: "R001", tableId: "table-6" },
           ],
+          { allocationKey: input.idempotencyKey },
         )
       : [];
   const arjunPaise =
@@ -131,7 +132,7 @@ export function appendDemoTip(
 
   return {
     ledger: ledgerSchema.parse({
-      version: 2,
+      version: 3,
       totalPaise: ledger.totalPaise + input.amountPaise,
       arjunPaise: ledger.arjunPaise + arjunPaise,
       priyaPaise: ledger.priyaPaise + priyaPaise,

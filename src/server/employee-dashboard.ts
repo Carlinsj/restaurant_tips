@@ -35,7 +35,6 @@ function dateKey(date: Date): string {
 }
 
 function allocationLabel(value: EmployeeAllocationKind): string {
-  if (value === "POOL") return "Pool share";
   if (value === "ADJUSTMENT") return "Adjustment";
   if (value === "REVERSAL") return "Reversal";
   return "Direct share";
@@ -315,7 +314,6 @@ export async function getEmployeeDashboardData(): Promise<EmployeeDashboardData>
         tipCount: baselineCurrent.tipCount + (currentShift?.tipCount ?? 0),
         directPaise:
           baselineCurrent.directPaise + (currentShift?.directPaise ?? 0),
-        poolPaise: baselineCurrent.poolPaise + (currentShift?.poolPaise ?? 0),
         adjustmentsPaise:
           baselineCurrent.adjustmentsPaise +
           (currentShift?.adjustmentsPaise ?? 0),

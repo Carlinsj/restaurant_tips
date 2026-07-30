@@ -10,7 +10,7 @@ audited without floating-point rounding errors.
 - Restaurant employees, tables, shifts, bills, tips, allocations, and payouts
 - Staff dashboards with current earnings, previous shifts, and personal reports
 - Customer tipping at `/tip/[publicToken]`
-- Exact workload-balanced table, direct, equal, hours, points, and hybrid allocation
+- Exact workload-balanced direct and table-split allocation
 - ChefOS-ready and universal signed webhook connections
 - Generic REST adapter and validated CSV bill imports
 - Encrypted POS credentials, idempotent events, and audit records
@@ -116,10 +116,19 @@ so the customer, manager, and staff screens still show the same practice flow.
 Practice data is isolated from restaurant records and never represents a
 payment.
 
-## Workload-balanced table tip rule
+## Workload rule and table-tip splitting
 
 This is the default rule for every newly confirmed table tip, whether it comes
 from the customer demo, a manager entry, or a POS import.
+
+In short, a table tip is shared only among staff assigned to that table. Staff
+covering fewer active tables receive a larger share because they are assumed to
+have contributed more focused attention, while everyone who served the tipped
+table remains included.
+
+TipSathi does not create a shift-wide or restaurant-wide tip pool. Every new
+tip remains attached to its table and is credited only to staff assigned to
+that table.
 
 1. Only staff with an active assignment to the tipped table are eligible.
 2. For each eligible person, TipSathi counts their distinct active table
@@ -135,8 +144,9 @@ from the customer demo, a manager entry, or a POS import.
 4. The tip is multiplied by those normalized shares.
 5. Amounts are calculated in integer minor units (paise for INR). If division
    leaves one or more minor units, they go to the largest fractional
-   remainders. An exact tie is resolved by employee ID so retries always
-   produce the same result.
+   remainders. An exact tie uses a stable hash of the tip's allocation key and
+   employee ID. A retry produces the same result, while repeated tips do not
+   always give the extra minor unit to the same employee.
 
 Examples:
 
@@ -153,6 +163,19 @@ excluding teammates who also served the table. A single eligible person
 receives 100%. If nobody is assigned to the tipped table, TipSathi refuses to
 allocate the tip and asks for a table assignment instead of guessing.
 
+### Fairness assumptions
+
+There is no single objectively fairest rule for every restaurant. This rule is
+fair when the restaurant agrees that active table count is the best simple,
+auditable proxy for a server's current workload and that everyone assigned to
+the tipped table should participate.
+
+It deliberately does not guess contribution from job title, primary-server
+status, sales, party size, or how long someone covered the table. Those factors
+should not be silently mixed into a direct-tip formula. Assignment records must
+be kept current because incorrect assignments produce mathematically exact but
+operationally unfair results.
+
 Operational rules:
 
 - An assignment is active while `endedAt` is empty. End it as soon as the
@@ -162,10 +185,17 @@ Operational rules:
 - Workload is measured when the tip is confirmed. Later assignment changes do
   not rewrite historical allocations.
 - Every allocation stores the strategy version, active-table count, normalized
-  share in basis points, and rounding remainder in
+  share in basis points, rounding remainder, and deterministic remainder seed in
   `TipAllocation.calculationDetails` for auditability.
 - The signed practice ledger is versioned. Changing the financial rule starts a
   fresh practice ledger so old demo splits cannot be mixed with the new rule.
+
+The calculation scans active assignments once, apportions recipients in
+`O(n log n)` time, and uses exact integer arithmetic throughout. A dedicated
+database index supports active-assignment lookups by shift. Tests exhaustively
+cover bounded workload combinations and input permutations, maximum safe
+integer amounts, duplicate assignments, deterministic retries, and a
+500-recipient stress case.
 
 After pulling this change into an existing local demo database, run
 `npm run db:seed` once. The seed adds the sample table assignments used to

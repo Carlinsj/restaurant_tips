@@ -2,9 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   calculateDirectAllocation,
   calculateEqualAllocation,
-  calculateHoursPool,
-  calculateHybridAllocation,
-  calculatePointsPool,
   calculateTableLoadAllocation,
   calculateWeightedAllocation,
   createRefundReversals,
@@ -19,6 +16,42 @@ import {
 
 function total(allocations: { amountPaise: number }[]): number {
   return allocations.reduce((sum, allocation) => sum + allocation.amountPaise, 0);
+}
+
+function assignmentsForWorkloads(
+  workloads: number[],
+): { employeeId: string; tableId: string }[] {
+  return workloads.flatMap((workload, employeeIndex) =>
+    Array.from({ length: workload }, (_, tableIndex) => ({
+      employeeId: `employee-${employeeIndex}`,
+      tableId:
+        tableIndex === 0
+          ? "tipped-table"
+          : `employee-${employeeIndex}-table-${tableIndex}`,
+    })),
+  );
+}
+
+function workloadCombinations(
+  recipientCount: number,
+  maximumWorkload: number,
+): number[][] {
+  if (recipientCount === 0) return [[]];
+  return Array.from({ length: maximumWorkload }, (_, index) => index + 1)
+    .flatMap((workload) =>
+      workloadCombinations(recipientCount - 1, maximumWorkload).map(
+        (remaining) => [workload, ...remaining],
+      ),
+    );
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((item, index) =>
+    permutations([...items.slice(0, index), ...items.slice(index + 1)]).map(
+      (remaining) => [item, ...remaining],
+    ),
+  );
 }
 
 describe("currency calculations", () => {
@@ -135,6 +168,22 @@ describe("tip allocation strategies", () => {
     ]);
   });
 
+  it("excludes staff who are not assigned to the tipped table", () => {
+    const allocations = calculateTableLoadAllocation(1_000, "table-1", [
+      { employeeId: "eligible", tableId: "table-1" },
+      { employeeId: "eligible", tableId: "table-2" },
+      { employeeId: "other", tableId: "table-2" },
+    ]);
+
+    expect(allocations).toMatchObject([
+      {
+        employeeId: "eligible",
+        amountPaise: 1_000,
+        shareBasisPoints: 10_000,
+      },
+    ]);
+  });
+
   it("deduplicates table assignments and resolves equal remainders by employee ID", () => {
     const allocations = calculateTableLoadAllocation(1, "table-1", [
       { employeeId: "z", tableId: "table-1" },
@@ -151,6 +200,149 @@ describe("tip allocation strategies", () => {
     ]);
   });
 
+  it("uses the allocation key to distribute exact-tie remainder units without changing retries", () => {
+    const assignments = [
+      { employeeId: "a", tableId: "table-1" },
+      { employeeId: "b", tableId: "table-1" },
+      { employeeId: "c", tableId: "table-1" },
+    ];
+    const winners = new Set<string>();
+
+    for (let index = 0; index < 100; index += 1) {
+      const allocations = calculateTableLoadAllocation(
+        1,
+        "table-1",
+        assignments,
+        { allocationKey: `tip-${index}` },
+      );
+      const winner = allocations.find(
+        (allocation) => allocation.amountPaise === 1,
+      );
+      expect(winner?.remainderTieBreaker).toBe("HASHED_ALLOCATION_KEY");
+      expect(winner?.remainderSeed).toMatch(/^[a-f0-9]{16}$/);
+      if (winner) winners.add(winner.employeeId);
+    }
+
+    expect(winners).toEqual(new Set(["a", "b", "c"]));
+    expect(
+      calculateTableLoadAllocation(1, "table-1", assignments, {
+        allocationKey: "retry-safe-tip",
+      }),
+    ).toEqual(
+      calculateTableLoadAllocation(1, "table-1", [...assignments].reverse(), {
+        allocationKey: "retry-safe-tip",
+      }),
+    );
+  });
+
+  it("preserves invariants across workload combinations and minor-unit amounts", () => {
+    const amounts = [0, 1, 2, 7, 10_001, Number.MAX_SAFE_INTEGER];
+
+    for (let recipientCount = 1; recipientCount <= 4; recipientCount += 1) {
+      for (const workloads of workloadCombinations(recipientCount, 4)) {
+        const assignments = assignmentsForWorkloads(workloads);
+        for (const amountPaise of amounts) {
+          const allocations = calculateTableLoadAllocation(
+            amountPaise,
+            "tipped-table",
+            assignments,
+            { allocationKey: `combination:${workloads.join(",")}:${amountPaise}` },
+          );
+
+          expect(allocations).toHaveLength(recipientCount);
+          expect(total(allocations)).toBe(amountPaise);
+          expect(
+            allocations.reduce(
+              (sum, allocation) => sum + allocation.shareBasisPoints,
+              0,
+            ),
+          ).toBe(10_000);
+          expect(new Set(allocations.map(({ employeeId }) => employeeId)).size)
+            .toBe(recipientCount);
+
+          for (let left = 0; left < recipientCount; left += 1) {
+            for (let right = left + 1; right < recipientCount; right += 1) {
+              const leftAllocation = allocations.find(
+                ({ employeeId }) => employeeId === `employee-${left}`,
+              );
+              const rightAllocation = allocations.find(
+                ({ employeeId }) => employeeId === `employee-${right}`,
+              );
+              expect(leftAllocation).toBeDefined();
+              expect(rightAllocation).toBeDefined();
+              if (!leftAllocation || !rightAllocation) continue;
+
+              if (workloads[left] < workloads[right]) {
+                expect(leftAllocation.shareBasisPoints).toBeGreaterThanOrEqual(
+                  rightAllocation.shareBasisPoints,
+                );
+              } else if (workloads[left] > workloads[right]) {
+                expect(leftAllocation.shareBasisPoints).toBeLessThanOrEqual(
+                  rightAllocation.shareBasisPoints,
+                );
+              } else {
+                expect(
+                  Math.abs(
+                    leftAllocation.shareBasisPoints -
+                      rightAllocation.shareBasisPoints,
+                  ),
+                ).toBeLessThanOrEqual(1);
+                expect(
+                  Math.abs(
+                    leftAllocation.amountPaise - rightAllocation.amountPaise,
+                  ),
+                ).toBeLessThanOrEqual(1);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("is invariant across every input permutation for a three-person workload", () => {
+    const assignments = assignmentsForWorkloads([1, 2, 3]);
+    const expected = calculateTableLoadAllocation(
+      10_001,
+      "tipped-table",
+      assignments,
+      { allocationKey: "permutation-test" },
+    );
+
+    for (const permutation of permutations(assignments)) {
+      expect(
+        calculateTableLoadAllocation(
+          10_001,
+          "tipped-table",
+          permutation,
+          { allocationKey: "permutation-test" },
+        ),
+      ).toEqual(expected);
+    }
+  });
+
+  it("handles hundreds of recipients and thousands of assignments exactly", () => {
+    const workloads = Array.from(
+      { length: 500 },
+      (_, index) => (index % 20) + 1,
+    );
+    const allocations = calculateTableLoadAllocation(
+      10_000_000,
+      "tipped-table",
+      assignmentsForWorkloads(workloads),
+      { allocationKey: "large-shift" },
+    );
+
+    expect(allocations).toHaveLength(500);
+    expect(total(allocations)).toBe(10_000_000);
+    expect(
+      allocations.reduce(
+        (sum, allocation) => sum + allocation.shareBasisPoints,
+        0,
+      ),
+    ).toBe(10_000);
+  });
+
   it("rejects workload allocation when the tipped table has no assigned staff", () => {
     expect(() =>
       calculateTableLoadAllocation(100, "table-1", [
@@ -159,44 +351,38 @@ describe("tip allocation strategies", () => {
     ).toThrow("must be assigned");
   });
 
+  it("rejects invalid workload allocation inputs", () => {
+    const assignment = [{ employeeId: "a", tableId: "table-1" }];
+
+    expect(() =>
+      calculateTableLoadAllocation(-1, "table-1", assignment),
+    ).toThrow("cannot be negative");
+    expect(() =>
+      calculateTableLoadAllocation(
+        Number.MAX_SAFE_INTEGER + 1,
+        "table-1",
+        assignment,
+      ),
+    ).toThrow("safe integer");
+    expect(() =>
+      calculateTableLoadAllocation(1, " ", assignment),
+    ).toThrow("tipped table");
+    expect(() =>
+      calculateTableLoadAllocation(1, "table-1", [
+        { employeeId: " ", tableId: "table-1" },
+      ]),
+    ).toThrow("employee and table IDs");
+    expect(() =>
+      calculateTableLoadAllocation(1, "table-1", assignment, {
+        allocationKey: " ",
+      }),
+    ).toThrow("allocation key");
+  });
+
   it("assigns remaining paise deterministically for equal splits", () => {
     const allocations = calculateEqualAllocation(100, ["a", "b", "c"]);
     expect(allocations.map(({ amountPaise }) => amountPaise)).toEqual([34, 33, 33]);
     expect(total(allocations)).toBe(100);
-  });
-
-  it("allocates pooled tips by minutes worked", () => {
-    const allocations = calculateHoursPool(1_000, [
-      { employeeId: "a", share: 360 },
-      { employeeId: "b", share: 240 },
-    ]);
-    expect(allocations.map(({ amountPaise }) => amountPaise)).toEqual([600, 400]);
-  });
-
-  it("allocates pooled tips by role points", () => {
-    const allocations = calculatePointsPool(1_800, [
-      { employeeId: "captain", share: 12 },
-      { employeeId: "runner", share: 6 },
-    ]);
-    expect(allocations.map(({ amountPaise }) => amountPaise)).toEqual([
-      1_200, 600,
-    ]);
-  });
-
-  it("combines direct and pool portions in a hybrid allocation", () => {
-    const allocations = calculateHybridAllocation({
-      amountPaise: 10_001,
-      directPercentage: 80,
-      poolPercentage: 20,
-      directRecipients: [{ employeeId: "waiter", share: 1 }],
-      poolRecipients: [
-        { employeeId: "waiter", share: 1 },
-        { employeeId: "runner", share: 1 },
-      ],
-    });
-    expect(total(allocations)).toBe(10_001);
-    expect(allocations.find(({ employeeId }) => employeeId === "waiter")?.amountPaise).toBe(9_001);
-    expect(allocations.find(({ employeeId }) => employeeId === "runner")?.amountPaise).toBe(1_000);
   });
 
   it("creates exact negative reversals for refunds", () => {

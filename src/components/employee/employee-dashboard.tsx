@@ -100,17 +100,11 @@ function CurrentShiftCard({
               {formatHours(report.minutesWorked)} worked
             </p>
           </div>
-          <div className="grid min-w-full grid-cols-3 divide-x divide-white/10 rounded-xl border border-white/10 bg-white/5 py-3 sm:min-w-[380px]">
+          <div className="grid min-w-full grid-cols-2 divide-x divide-white/10 rounded-xl border border-white/10 bg-white/5 py-3 sm:min-w-[300px]">
             <div className="px-4">
               <p className="text-[10px] text-white/50">Direct</p>
               <p className="font-tabular mt-1 text-sm font-semibold">
                 {formatCurrency(report.directPaise, currency)}
-              </p>
-            </div>
-            <div className="px-4">
-              <p className="text-[10px] text-white/50">Pool</p>
-              <p className="font-tabular mt-1 text-sm font-semibold">
-                {formatCurrency(report.poolPaise, currency)}
               </p>
             </div>
             <div className="px-4">
@@ -284,7 +278,7 @@ export function EmployeeDashboard({
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold">
                       {allocation.tableNumber === null
-                        ? "Pooled tip"
+                        ? "Tip allocation"
                         : `Table ${allocation.tableNumber}`}{" "}
                       <span className="font-normal text-muted-foreground">
                         · {allocation.time}
@@ -374,7 +368,7 @@ export function EmployeeDashboard({
             <div>
               <CardTitle className="text-sm">Earnings by shift</CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                Direct and pooled tip amounts credited to your account.
+                Direct tip amounts credited to your account.
               </p>
             </div>
           </CardHeader>
@@ -404,21 +398,13 @@ export function EmployeeDashboard({
                           {report.payoutStatus}
                         </Badge>
                       </div>
-                      <dl className="mt-4 grid grid-cols-3 gap-3 rounded-lg bg-muted/45 p-3">
+                      <dl className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-muted/45 p-3">
                         <div>
                           <dt className="text-[9px] text-muted-foreground">
                             Direct
                           </dt>
                           <dd className="font-tabular mt-1 text-xs font-medium">
                             {formatCurrency(report.directPaise, data.currency)}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="text-[9px] text-muted-foreground">
-                            Pool
-                          </dt>
-                          <dd className="font-tabular mt-1 text-xs font-medium">
-                            {formatCurrency(report.poolPaise, data.currency)}
                           </dd>
                         </div>
                         <div className="text-end">
@@ -447,7 +433,6 @@ export function EmployeeDashboard({
                         <TableHead>Hours</TableHead>
                         <TableHead>Tips</TableHead>
                         <TableHead className="text-end">Direct</TableHead>
-                        <TableHead className="text-end">Pool</TableHead>
                         <TableHead className="text-end">Adjustments</TableHead>
                         <TableHead className="text-end">Total</TableHead>
                         <TableHead className="pe-5 text-end">Payout</TableHead>
@@ -478,9 +463,6 @@ export function EmployeeDashboard({
                           </TableCell>
                           <TableCell className="font-tabular text-end text-xs">
                             {formatCurrency(report.directPaise, data.currency)}
-                          </TableCell>
-                          <TableCell className="font-tabular text-end text-xs">
-                            {formatCurrency(report.poolPaise, data.currency)}
                           </TableCell>
                           <TableCell className="font-tabular text-end text-xs">
                             {formatSignedCurrency(report.adjustmentsPaise, data.currency)}
